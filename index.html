@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Maintenance Announcement Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/style.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header class="header">
+        <h1>Maintenance Announcement Generator</h1>
+        <p class="subtitle">Generate Pre-MA and MA Mode announcements in TH and EN (use EN text for EN/MY/KM)</p>
+      </header>
+
+      <section class="card">
+        <h2 class="card-title">Select Window</h2>
+        <form id="ma-form" class="form" onsubmit="return false;">
+          <div class="field">
+            <label for="dateInput">Base date</label>
+            <input id="dateInput" name="date" type="date" required />
+          </div>
+          <div class="field">
+            <label for="intervalSelect">Interval</label>
+            <select id="intervalSelect" name="interval">
+              <option value="15">15 minutes</option>
+              <option value="30" selected>30 minutes</option>
+              <option value="60">60 minutes</option>
+            </select>
+          </div>
+          <div class="actions" style="align-self: flex-end;">
+            <button id="zoomOutBtn" class="btn ghost" type="button" title="Zoom out">Zoom −</button>
+            <button id="zoomInBtn" class="btn ghost" type="button" title="Zoom in">Zoom +</button>
+          </div>
+          <div class="actions">
+            <button id="clearBtn" class="btn" type="reset">Clear</button>
+          </div>
+        </form>
+        <p class="subtitle" style="margin-top:12px">Click and drag across the grid to select your maintenance window (adjustable interval: 15/30/60 mins). Mobile: tap to start, drag to extend, lift to finish.</p>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title">Time Grid (2 consecutive days)</h2>
+        <div id="timeGrid" class="time-grid" aria-label="Time selection grid"></div>
+        <div id="selectionFloat" class="selection-summary hidden" aria-live="polite"></div>
+      </section>
+
+      <section class="card" id="compactSummary">
+        <h2 class="card-title">Selection Summary</h2>
+        <div class="summary-rows">
+          <div class="row" id="sumDate">—</div>
+          <div class="row" id="sumTime">—</div>
+          <div class="row" id="sumSelection">—</div>
+        </div>
+      </section>
+
+      <section id="outputs" class="grid hidden">
+        <article class="card">
+          <div class="card-header">
+            <h3 class="card-title">Pre-MA (TH)</h3>
+            <button class="btn ghost" data-copy="preTH">Copy</button>
+          </div>
+          <pre id="preTH" class="output"></pre>
+        </article>
+
+        <article class="card">
+          <div class="card-header">
+            <h3 class="card-title">Pre-MA (EN / MY / KM)</h3>
+            <button class="btn ghost" data-copy="preEN">Copy</button>
+          </div>
+          <pre id="preEN" class="output"></pre>
+        </article>
+
+        <article class="card">
+          <div class="card-header">
+            <h3 class="card-title">MA Mode (TH)</h3>
+            <button class="btn ghost" data-copy="maTH">Copy</button>
+          </div>
+          <pre id="maTH" class="output"></pre>
+        </article>
+
+        <article class="card">
+          <div class="card-header">
+            <h3 class="card-title">MA Mode (EN / MY / KM)</h3>
+            <button class="btn ghost" data-copy="maEN">Copy</button>
+          </div>
+          <pre id="maEN" class="output"></pre>
+        </article>
+      </section>
+
+      <footer class="footer">
+        <small>dtac internal tool · v1.0</small>
+      </footer>
+    </main>
+
+    <script src="assets/app.js"></script>
+  </body>
+</html>

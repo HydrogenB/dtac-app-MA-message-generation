@@ -1,0 +1,449 @@
+(function () {
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+  const dateEl = $('#dateInput');
+  const intervalEl = $('#intervalSelect');
+  const gridEl = $('#timeGrid');
+  const clearBtn = $('#clearBtn');
+  const outputs = $('#outputs');
+  const zoomInBtn = document.getElementById('zoomInBtn');
+  const zoomOutBtn = document.getElementById('zoomOutBtn');
+
+  const outPreTH = $('#preTH');
+  const outPreEN = $('#preEN');
+  const outMaTH = $('#maTH');
+  const outMaEN = $('#maEN');
+
+  // Weekday names
+  const WEEKDAY_TH = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+  const WEEKDAY_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+  // Month names
+  const MONTH_TH_ABBR = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+  const MONTH_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+  function pad2(n) { return String(n).padStart(2, '0'); }
+
+  // Dynamic time slots via interval (minutes)
+  let currentSlotsPerDay = 48; // default 30 min
+  let currentTimeLabels = [];
+  let intervalMin = 30; // default
+  function recomputeTimeConfig() {
+    const minutesPerDay = 24 * 60;
+    currentSlotsPerDay = Math.floor(minutesPerDay / intervalMin);
+    currentTimeLabels = Array.from({ length: currentSlotsPerDay + 1 }, (_, i) => {
+      const total = i * intervalMin;
+      const h = Math.floor(total / 60);
+      const m = total % 60;
+      return `${pad2(h)}:${pad2(m)}`;
+    });
+  }
+
+  // Label density control
+  let labelStepOverride = null; // null = auto; otherwise hours per label: 1,2,3,6
+  function computeSlotWidth() {
+    const innerWidth = gridEl.clientWidth || gridEl.getBoundingClientRect().width || 0;
+    if (!innerWidth) return 14; // fallback
+    const hours = 48;
+    const slotsPerHour = Math.max(1, Math.floor(60 / intervalMin));
+    return Math.max(10, Math.floor((innerWidth - 2) / (hours * slotsPerHour)));
+  }
+  function defaultLabelStep(slotWidth) {
+    if (slotWidth >= 28) return 1; // every hour
+    if (slotWidth >= 20) return 2; // every 2 hours
+    if (slotWidth >= 16) return 3; // every 3 hours
+    return 6; // otherwise every 6 hours
+  }
+
+  function parseISODateOnly(isoDate) {
+    // Construct as local date at noon to avoid TZ edge cases, then correct
+    const [y, m, d] = isoDate.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  function formatThaiDate(d) {
+    const weekday = WEEKDAY_TH[d.getDay()];
+    const day = d.getDate();
+    const month = MONTH_TH_ABBR[d.getMonth()];
+    const beYear = d.getFullYear() + 543;
+    return { weekdayTH: weekday, day, monthTH: month, yearBE: beYear };
+  }
+
+  function formatEnglishDate(d) {
+    const weekday = WEEKDAY_EN[d.getDay()];
+    const day = d.getDate();
+    const month = MONTH_EN[d.getMonth()];
+    const year = d.getFullYear();
+    return { weekdayEN: weekday, day, monthEN: month, year };
+  }
+
+  function isCrossDay(startHHmm, endHHmm) {
+    // Compare lexicographically; both are zero-padded HH:mm
+    return endHHmm < startHHmm;
+  }
+
+  function buildMessages({ date, startTime, endTime, crossDay }) {
+    const th = formatThaiDate(date);
+    const en = formatEnglishDate(date);
+
+    // Thai time phrase
+    const thTimePhrase = crossDay
+      ? `${startTime} น. – ${endTime} น. ของวันถัดไป`
+      : `${startTime} – ${endTime} น.`;
+
+    // English connector
+    const enConnector = crossDay ? `until ${endTime} of the following day` : `to ${endTime}`;
+
+    // Pre-MA
+    const preTH = `เรียนลูกค้าที่เคารพ ดีแทคแอปจะปิดปรับปรุงเพื่อบริการที่ดียิ่งขึ้นในวัน${th.weekdayTH}ที่ ${th.day} ${th.monthTH} ${th.yearBE} เวลา ${thTimePhrase} ขออภัยในความไม่สะดวก`;
+
+    const preEN = `Dear customers, please note that dtac app will be closed for upgrading the service on ${en.weekdayEN}, ${en.day} ${en.monthEN} ${en.year}, from ${startTime} ${enConnector}. We sincerely apologize for the inconvenience.`;
+
+    // MA Mode (during)
+    const maTH = `ดีแทคแอปกำลังปิดปรับปรุงระบบเพื่อบริการที่ดียิ่งขึ้นในวัน${th.weekdayTH}ที่ ${th.day} ${th.monthTH} ${th.yearBE} เวลา ${thTimePhrase} ขออภัยในความไม่สะดวก`;
+
+    const maEN = `dtac app is now upgrading the service on ${en.weekdayEN}, ${en.day} ${en.monthEN} ${en.year}, from ${startTime} ${enConnector}. We sincerely apologize for the inconvenience.`;
+
+    return { preTH, preEN, maTH, maEN, crossDay };
+  }
+
+  function copyToClipboardById(id, button) {
+    const el = document.getElementById(id);
+    const text = (el?.textContent || '').trim();
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      if (button) {
+        const original = button.textContent;
+        button.textContent = 'Copied!';
+        button.disabled = true;
+        setTimeout(() => { button.textContent = original; button.disabled = false; }, 1000);
+      }
+    }).catch(() => {/* ignore */});
+  }
+
+  function setTodayAsDefault() {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = pad2(now.getMonth() + 1);
+    const dd = pad2(now.getDate());
+    dateEl.value = `${yyyy}-${mm}-${dd}`;
+  }
+
+  function clearOutputs() {
+    outPreTH.textContent = '';
+    outPreEN.textContent = '';
+    outMaTH.textContent = '';
+    outMaEN.textContent = '';
+    outputs.classList.add('hidden');
+  }
+
+  // Selection state across two days
+  let selStart = null; // inclusive linear index across both days
+  let selEnd = null;   // inclusive linear index across both days
+  let dragging = false;
+  const selectionFloat = document.getElementById('selectionFloat');
+  const sumDate = document.getElementById('sumDate');
+  const sumTime = document.getElementById('sumTime');
+  const sumSelection = document.getElementById('sumSelection');
+
+  function selectionEmpty() {
+    return selStart === null || selEnd === null;
+  }
+
+  function getBaseDates() {
+    if (!dateEl.value) return null;
+    const d0 = parseISODateOnly(dateEl.value);
+    const d1 = new Date(d0); d1.setDate(d1.getDate() + 1);
+    return { d0, d1 };
+  }
+
+  function linearToDaySlot(idx) {
+    return { day: Math.floor(idx / currentSlotsPerDay), slot: idx % currentSlotsPerDay };
+  }
+
+  function buildGrid() {
+    const dates = getBaseDates();
+    if (!dates) { gridEl.innerHTML = ''; return; }
+    const { d0, d1 } = dates;
+
+    const header0 = `${WEEKDAY_EN[d0.getDay()]}, ${d0.getDate()} ${MONTH_EN[d0.getMonth()]} ${d0.getFullYear()}`;
+    const header1 = `${WEEKDAY_EN[d1.getDay()]}, ${d1.getDate()} ${MONTH_EN[d1.getMonth()]} ${d1.getFullYear()}`;
+
+    const totalCols = currentSlotsPerDay * 2;
+    const parts = [];
+    parts.push(`<div class="tg-h" style="grid-template-columns: repeat(${totalCols}, var(--slot-w, 72px));">`);
+    // Row 1: date headers spanning each day
+    parts.push(`<div class="hdate" style="grid-column: 1 / span ${currentSlotsPerDay};">${header0}</div>`);
+    parts.push(`<div class="hdate" style="grid-column: ${currentSlotsPerDay + 1} / span ${currentSlotsPerDay};">${header1}</div>`);
+
+    // Row 2: time labels across all columns (0..totalCols-1)
+    const slotWidth = computeSlotWidth();
+    const step = labelStepOverride ?? defaultLabelStep(slotWidth);
+    for (let c = 0; c < totalCols; c++) {
+      const slotInDay = c % currentSlotsPerDay;
+      const totalMin = slotInDay * intervalMin;
+      const hour = Math.floor(totalMin / 60);
+      const minutes = totalMin % 60;
+      const fullHHmm = `${pad2(hour)}:${pad2(minutes)}`;
+      // Reduce density: show hour number only at the hour (00..23), dot otherwise
+      const isMajor = minutes === 0;
+      const showThis = isMajor && (hour % step === 0);
+      const tick = showThis ? `${pad2(hour)}:00` : '';
+      const daySplit = (c === currentSlotsPerDay) ? ' day-split' : '';
+      const cls = (isMajor ? 'htime major' : 'htime minor') + daySplit;
+      const headerForCol = c < currentSlotsPerDay ? header0 : header1;
+      parts.push(`<div class="${cls}" title="${headerForCol} ${fullHHmm}">${tick}</div>`);
+    }
+
+    // Row 3: selection cells across all columns
+    for (let c = 0; c < totalCols; c++) {
+      const slotInDay = c % currentSlotsPerDay;
+      const totalMin = slotInDay * intervalMin;
+      const minutes = totalMin % 60;
+      const isHour = minutes === 0;
+      const daySplit = (c === currentSlotsPerDay) ? ' day-split' : '';
+      const hourCls = isHour ? ' hour' : '';
+      const headerForCol = c < currentSlotsPerDay ? header0 : header1;
+      const hour = Math.floor(totalMin / 60);
+      const fullHHmm = `${pad2(hour)}:${pad2(minutes)}`;
+      parts.push(`<div class="hcell${hourCls}${daySplit}" data-lin="${c}" role="gridcell" aria-label="${headerForCol} ${fullHHmm}" title="${headerForCol} ${fullHHmm}"></div>`);
+    }
+    parts.push('</div>');
+    gridEl.innerHTML = parts.join('');
+
+    // Event delegation for pointer interactions (attach once)
+    if (!buildGrid._attached) {
+      gridEl.addEventListener('pointerdown', onPointerDown);
+      gridEl.addEventListener('pointerover', onPointerOver);
+      window.addEventListener('pointerup', onPointerUp);
+      buildGrid._attached = true;
+    }
+
+    updateSelectionHighlight();
+    updateSlotWidth();
+    applyFocusBand();
+  }
+
+  function onPointerDown(e) {
+    const cell = e.target.closest('.hcell');
+    if (!cell) return;
+    const lin = Number(cell.getAttribute('data-lin'));
+    dragging = true;
+    selStart = lin;
+    selEnd = lin;
+    updateSelectionHighlight();
+    updateSelectionFloat(e);
+    selectionFloat.classList.remove('hidden');
+    e.preventDefault();
+  }
+
+  function onPointerOver(e) {
+    if (!dragging) return;
+    const cell = e.target.closest('.hcell');
+    if (!cell) return;
+    const lin = Number(cell.getAttribute('data-lin'));
+    selEnd = lin;
+    updateSelectionHighlight();
+    updateSelectionFloat(e);
+  }
+
+  function onPointerUp() {
+    if (!dragging) return;
+    dragging = false;
+    // Normalize
+    if (selStart !== null && selEnd !== null && selEnd < selStart) {
+      const t = selStart; selStart = selEnd; selEnd = t;
+    }
+    render();
+    hideSelectionFloatSoon();
+  }
+
+  function updateSelectionHighlight() {
+    $$('.hcell').forEach(c => c.classList.remove('selected'));
+    if (selStart === null || selEnd === null) return;
+    const a = Math.min(selStart, selEnd);
+    const b = Math.max(selStart, selEnd);
+    for (let i = a; i <= b; i++) {
+      const el = gridEl.querySelector(`.hcell[data-lin="${i}"]`);
+      if (el) el.classList.add('selected');
+    }
+  }
+
+  function computeSelection() {
+    if (selectionEmpty()) return null;
+    const a = Math.min(selStart, selEnd);
+    const b = Math.max(selStart, selEnd);
+    const base = getBaseDates();
+    if (!base) return null;
+    const start = linearToDaySlot(a);
+    const endExclusiveLinear = b + 1;
+    const endDay = Math.floor(endExclusiveLinear / currentSlotsPerDay);
+    const endSlot = endExclusiveLinear % currentSlotsPerDay;
+
+    const startDate = new Date(base.d0);
+    startDate.setDate(startDate.getDate() + start.day);
+    const startTime = currentTimeLabels[start.slot];
+    const endTime = currentTimeLabels[endSlot];
+    const crossDay = endDay > start.day;
+
+    return { date: startDate, startTime, endTime, crossDay };
+  }
+
+  function render() {
+    const model = computeSelection();
+    if (!model) { clearOutputs(); return; }
+
+    const { preTH, preEN, maTH, maEN } = buildMessages(model);
+
+    outPreTH.textContent = preTH;
+    outPreEN.textContent = preEN;
+    outMaTH.textContent = maTH;
+    outMaEN.textContent = maEN;
+
+    outputs.classList.remove('hidden');
+    updateCompactSummary(model);
+  }
+
+  function updateSlotWidth() {
+    const inner = gridEl.querySelector('.tg-h');
+    if (!inner) return;
+    // Fit 48 hours (2 days) to container width regardless of interval
+    const hours = 48; // 2 days
+    const slotsPerHour = Math.max(1, Math.floor(60 / intervalMin));
+    const cw = gridEl.clientWidth || inner.getBoundingClientRect().width;
+    if (!cw) return;
+    const slotWidth = Math.max(16, Math.floor((cw - 2) / (hours * slotsPerHour)));
+    inner.style.setProperty('--slot-w', slotWidth + 'px');
+  }
+
+  // Emphasize 18:00 – 06:00 (next day) band
+  function applyFocusBand() {
+    const inner = gridEl.querySelector('.tg-h');
+    if (!inner) return;
+    const totalCols = currentSlotsPerDay * 2;
+    const slotsPerHour = Math.max(1, Math.floor(60 / intervalMin));
+    const start0 = 18 * slotsPerHour; // 18:00 of day 0
+    const end0 = currentSlotsPerDay;   // to 24:00
+    const start1 = currentSlotsPerDay + 0; // 00:00 of day 1
+    const end1 = currentSlotsPerDay + 6 * slotsPerHour; // 06:00 of day 1
+
+    const timeCells = Array.from(inner.querySelectorAll('.htime'));
+    const selCells = Array.from(inner.querySelectorAll('.hcell'));
+    for (let c = 0; c < totalCols; c++) {
+      const inFocus = (c >= start0 && c < end0) || (c >= start1 && c < end1);
+      const t = timeCells[c];
+      const s = selCells[c];
+      if (t) {
+        t.classList.toggle('focus', inFocus);
+        t.classList.toggle('dim', !inFocus);
+      }
+      if (s) {
+        s.classList.toggle('focus', inFocus);
+        s.classList.toggle('dim', !inFocus);
+      }
+    }
+  }
+
+  // Real-time rebuild grid on date change
+  ['input', 'change'].forEach((evt) => {
+    dateEl.addEventListener(evt, () => {
+      selStart = null; selEnd = null;
+      buildGrid();
+      render();
+    });
+  });
+
+  // Rebuild grid when interval changes
+  ['input', 'change'].forEach((evt) => {
+    intervalEl.addEventListener(evt, () => {
+      intervalMin = parseInt(intervalEl.value, 10) || 30;
+      recomputeTimeConfig();
+      selStart = null; selEnd = null;
+      buildGrid();
+      render();
+    });
+  });
+
+  // Resize handler to keep grid compact across viewport changes
+  window.addEventListener('resize', () => {
+    updateSlotWidth();
+    applyFocusBand();
+  });
+
+  // Zoom controls adjust label density (readability) without changing fit-to-width
+  function adjustLabelStep(direction) {
+    const slotW = computeSlotWidth();
+    const steps = [1, 2, 3, 6];
+    const current = labelStepOverride ?? defaultLabelStep(slotW);
+    let idx = steps.indexOf(current);
+    if (idx === -1) idx = steps.length - 1;
+    if (direction === 'in') idx = Math.max(0, idx - 1); else idx = Math.min(steps.length - 1, idx + 1);
+    labelStepOverride = steps[idx];
+    buildGrid();
+    render();
+  }
+  if (zoomInBtn) zoomInBtn.addEventListener('click', () => adjustLabelStep('in'));
+  if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => adjustLabelStep('out'));
+
+  clearBtn.addEventListener('click', () => {
+    // Allow native reset, then clear outputs
+    setTimeout(() => {
+      selStart = null; selEnd = null;
+      intervalMin = parseInt(intervalEl.value, 10) || 30;
+      recomputeTimeConfig();
+      buildGrid();
+      clearOutputs();
+      render();
+    }, 0);
+  });
+
+  // Copy buttons
+  $$('.btn.ghost[data-copy]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.getAttribute('data-copy');
+      copyToClipboardById(targetId, btn);
+    });
+  });
+
+  function updateSelectionFloat(e) {
+    if (!selectionFloat) return;
+    const model = computeSelection();
+    if (!model) { selectionFloat.classList.add('hidden'); return; }
+    const th = formatThaiDate(model.date);
+    const en = formatEnglishDate(model.date);
+    const crossTH = model.crossDay ? ' ของวันถัดไป' : '';
+    const crossEN = model.crossDay ? ' of the following day' : '';
+    selectionFloat.textContent = `${th.day} ${th.monthTH} ${th.yearBE} · ${model.startTime} – ${model.endTime}${crossTH} | ${en.day} ${en.monthEN} ${en.year} · ${model.startTime} ${model.crossDay ? 'until' : 'to'} ${model.endTime}${crossEN}`;
+    selectionFloat.style.position = 'fixed';
+    selectionFloat.style.left = (e.clientX + 12) + 'px';
+    selectionFloat.style.top = (e.clientY + 12) + 'px';
+  }
+
+  function hideSelectionFloatSoon() {
+    if (!selectionFloat) return;
+    setTimeout(() => selectionFloat.classList.add('hidden'), 80);
+  }
+
+  function updateCompactSummary(model) {
+    if (!sumDate || !sumTime || !sumSelection) return;
+    const th = formatThaiDate(model.date);
+    const en = formatEnglishDate(model.date);
+    const crossTH = model.crossDay ? ' ของวันถัดไป' : '';
+    const crossEN = model.crossDay ? ' of the following day' : '';
+    sumDate.textContent = `วัน${th.weekdayTH}ที่ ${th.day} ${th.monthTH} ${th.yearBE} | ${en.weekdayEN}, ${en.day} ${en.monthEN} ${en.year}`;
+    sumTime.textContent = `${model.startTime} – ${model.endTime}${crossTH} | ${model.startTime} ${model.crossDay ? 'until' : 'to'} ${model.endTime}${crossEN}`;
+    const a = Math.min(selStart ?? 0, selEnd ?? 0);
+    const b = Math.max(selStart ?? 0, selEnd ?? 0);
+    const slots = selectionEmpty() ? 0 : (b - a + 1);
+    sumSelection.textContent = `Interval: ${intervalMin} min • Slots: ${slots} • Cross-day: ${model.crossDay ? 'Yes' : 'No'}`;
+  }
+
+  // Initialize
+  setTodayAsDefault();
+  intervalMin = parseInt(intervalEl.value, 10) || 30;
+  recomputeTimeConfig();
+  clearOutputs();
+  buildGrid();
+  render();
+})();

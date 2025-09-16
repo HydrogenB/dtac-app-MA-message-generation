@@ -1,0 +1,245 @@
+/* Base */
+:root {
+  --bg: #0b0f17;
+  --panel: #111826;
+  --muted: #6b7485;
+  --text: #e6edf3;
+  --brand: #4f8cff;
+  --brand-600: #3b73db;
+  --border: #1f2837;
+  --slot-w: 72px; /* default width for a time slot column in horizontal grid */
+}
+
+/* Floating selection summary */
+.selection-summary {
+  position: fixed;
+  background: rgba(8,16,30,0.9);
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* Compact 3-row summary */
+#compactSummary .summary-rows { display: grid; gap: 6px; }
+#compactSummary .row { color: var(--text); opacity: 0.9; font-size: 14px; }
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  background: radial-gradient(1200px 800px at 80% -10%, #1a2540, transparent 60%),
+              radial-gradient(800px 600px at -10% 10%, #1a3a28, transparent 60%),
+              var(--bg);
+  color: var(--text);
+}
+
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 20px 64px;
+}
+
+.header { margin-bottom: 20px; }
+.header h1 { margin: 0 0 6px; font-size: 28px; font-weight: 700; }
+.subtitle { margin: 0; color: var(--muted); }
+
+.card {
+  background: linear-gradient(180deg, #0f1624, #0e1421);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+}
+
+.card + .card { margin-top: 16px; }
+.card-title { margin: 0 0 12px; font-size: 18px; }
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  align-items: end;
+}
+
+.field { display: flex; flex-direction: column; gap: 8px; }
+.field label { font-weight: 600; }
+.field input[type="date"],
+.field input[type="time"] {
+  background: #0d1320;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 12px;
+}
+
+.field select {
+  background: #0d1320;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 12px;
+}
+
+.actions { display: flex; gap: 10px; }
+
+.btn {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: #0f1728;
+  color: var(--text);
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn.primary { background: var(--brand); border-color: var(--brand-600); color: #08101e; }
+.btn.primary:hover { background: var(--brand-600); }
+.btn.ghost { background: transparent; }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.grid {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 860px) {
+  .grid { grid-template-columns: 1fr 1fr; }
+}
+
+.output {
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #0b1120;
+  border: 1px dashed var(--border);
+  padding: 14px;
+  border-radius: 10px;
+  min-height: 100px;
+}
+
+.hidden { display: none; }
+
+.footer { margin-top: 22px; color: var(--muted); text-align: center; }
+
+/* Time Grid */
+.time-grid { overflow: auto; }
+.tg {
+  display: grid;
+  grid-template-columns: 110px 1fr 1fr; /* time labels + two day columns */
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* Horizontal grid */
+.tg-h {
+  display: grid;
+  grid-auto-rows: auto; /* rows: date headers, time row, selection row */
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: auto;
+  width: 100%;
+}
+
+.tg-h .hdate {
+  position: sticky; top: 0;
+  background: linear-gradient(180deg, #0f1624, #0e1421);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 12px;
+  font-weight: 600;
+  text-align: center;
+  z-index: 2;
+}
+
+.tg-h .htime {
+  background: #0d1320;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  padding: 4px 6px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.tg-h .htime.major { color: var(--text); font-weight: 600; }
+.tg-h .htime.minor { color: var(--muted); opacity: 0.6; }
+.tg-h .htime.focus { background: #16223b; color: #dfe8f5; opacity: 1; }
+.tg-h .htime.dim { opacity: 0.35; }
+
+.tg-h .hcell {
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  min-height: 36px; /* compact yet tappable */
+  background: #0b1120;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+.tg-h .hcell:hover { background: #0e1730; }
+.tg-h .hcell.selected { background: rgba(79, 140, 255, 0.35); box-shadow: inset 0 0 0 1px rgba(79,140,255,0.6); }
+.tg-h .hcell.focus { background: rgba(79,140,255,0.18); }
+.tg-h .hcell.dim { opacity: 0.35; }
+
+/* Visual cue at hour boundaries */
+.tg-h .hcell.hour { box-shadow: inset 2px 0 0 rgba(255,255,255,0.06); }
+.tg-h .htime.day-split, .tg-h .hcell.day-split { box-shadow: inset 3px 0 0 rgba(255,255,255,0.15); }
+
+.tg .corner {
+  position: sticky; top: 0; left: 0;
+  background: #0f1624;
+  border-bottom: 1px solid var(--border);
+  height: 44px;
+}
+
+.tg .col-header {
+  position: sticky; top: 0;
+  background: linear-gradient(180deg, #0f1624, #0e1421);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 12px;
+  font-weight: 600;
+  z-index: 1;
+}
+
+.tg .time-label {
+  position: sticky; left: 0;
+  background: #0d1320;
+  border-top: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  padding: 6px 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tg .cell {
+  border-top: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  min-height: 28px; /* 30-min row height */
+  background: #0b1120;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+.tg .cell:hover { background: #0e1730; }
+.tg .cell.selected { background: rgba(79, 140, 255, 0.35); box-shadow: inset 0 0 0 1px rgba(79,140,255,0.6); }
+
+@media (max-width: 640px) {
+  .tg { grid-template-columns: 78px 1fr 1fr; }
+  .tg .corner, .tg .col-header { font-size: 12px; }
+  .tg .time-label { font-size: 12px; padding: 6px 6px; }
+  .tg .cell { min-height: 32px; }
+}
