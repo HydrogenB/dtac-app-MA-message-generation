@@ -9,7 +9,9 @@
   const outputs = $('#outputs');
   const zoomInBtn = document.getElementById('zoomInBtn');
   const zoomOutBtn = document.getElementById('zoomOutBtn');
+  const midnightBtn = document.getElementById('midnightBtn');
   const slotLengthToggle = document.getElementById('slotLengthToggle');
+  const datePretty = document.getElementById('datePretty');
 
   const outPreTH = $('#preTH');
   const outPreEN = $('#preEN');
@@ -63,6 +65,20 @@
     return new Date(y, m - 1, d);
   }
 
+  const MONTH_EN_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function formatDateShort(d) {
+    const dd = pad2(d.getDate());
+    const mm = MONTH_EN_ABBR[d.getMonth()];
+    const yy = String(d.getFullYear()).slice(-2);
+    return `${dd} ${mm} ${yy}`;
+  }
+
+  function updatePrettyDate() {
+    if (!dateEl || !datePretty || !dateEl.value) return;
+    const d = parseISODateOnly(dateEl.value);
+    datePretty.textContent = formatDateShort(d);
+  }
+
   function formatThaiDate(d) {
     const weekday = WEEKDAY_TH[d.getDay()];
     const day = d.getDate();
@@ -109,6 +125,22 @@
     return { preTH, preEN, maTH, maEN, crossDay };
   }
 
+  function buildTopics({ date, startTime, endTime, crossDay }) {
+    const th = formatThaiDate(date);
+    const en = formatEnglishDate(date);
+
+    const enRange = crossDay ? `${startTime} until ${endTime} (next day)` : `${startTime} to ${endTime}`;
+    const thRange = crossDay ? `${startTime} � ${endTime} �ͧ�ѹ�Ѵ�` : `${startTime} � ${endTime}`;
+
+    const topicPreEN = `dtac app maintenance – ${en.weekdayEN}, ${en.day} ${en.monthEN} ${en.year} (${enRange})`;
+    const topicMaEN = `dtac app is under maintenance – ${en.day} ${en.monthEN} ${en.year} (${enRange})`;
+
+    const topicPreTH = `�յ��Դ�Ѻ���к dtac app – ${th.weekdayTH} ${th.day} ${th.monthTH} ${th.yearBE} (${thRange})`;
+    const topicMaTH = `dtac app ���ҧ�Դ�Ѻ���к – ${th.day} ${th.monthTH} ${th.yearBE} (${thRange})`;
+
+    return { topicPreEN, topicMaEN, topicPreTH, topicMaTH };
+  }
+
   function copyToClipboardById(id, button) {
     const el = document.getElementById(id);
     const text = (el?.textContent || '').trim();
@@ -147,6 +179,10 @@
     outMaEN.textContent = '';
     outputs.classList.add('hidden');
     if (selectionFloat) selectionFloat.classList.add('hidden');
+    const allPre = document.getElementById('allMessages');
+    const allCard = document.getElementById('allMessagesCard');
+    if (allPre) allPre.textContent = '';
+    if (allCard) allCard.classList.add('hidden');
   }
 
   // Selection state across two days
@@ -159,6 +195,7 @@
   const sumDate = document.getElementById('sumDate');
   const sumTime = document.getElementById('sumTime');
   const sumSelection = document.getElementById('sumSelection');
+  const hoverFloat = document.getElementById('hoverFloat');
 
   if (gridEl) {
     gridEl.setAttribute('role', 'grid');
@@ -223,8 +260,8 @@
 
   function getBaseDates() {
     if (!dateEl.value) return null;
-    const d0 = parseISODateOnly(dateEl.value);
-    const d1 = new Date(d0); d1.setDate(d1.getDate() + 1);
+    const d1 = parseISODateOnly(dateEl.value); // selected date
+    const d0 = new Date(d1); d0.setDate(d0.getDate() - 1); // previous day
     return { d0, d1 };
   }
 
@@ -253,23 +290,10 @@
     parts.push(`<div class="tg-h" style="grid-template-columns: repeat(${totalCols}, var(--slot-w, 72px));">`);
 
     // Row 1: date headers spanning each day
-    parts.push(`<div class="hdate day-header" style="grid-column: 1 / span ${currentSlotsPerDay};">${header0}</div>`);
-    parts.push(`<div class="hdate day-header" style="grid-column: ${currentSlotsPerDay + 1} / span ${currentSlotsPerDay};">${header1}</div>`);
+    parts.push(`<div class="hdate" style="grid-column: 1 / span ${currentSlotsPerDay};">${header0}</div>`);
+    parts.push(`<div class="hdate" style="grid-column: ${currentSlotsPerDay + 1} / span ${currentSlotsPerDay};">${header1}</div>`);
 
-    // Row 2: time period headers (Morning, Afternoon, Evening)
-    const slotsPerPeriod = Math.floor(currentSlotsPerDay / 3);
-    const morningEnd = slotsPerPeriod;
-    const afternoonEnd = slotsPerPeriod * 2;
-
-    parts.push(`<div class="period-header morning" style="grid-column: 1 / span ${morningEnd};">Morning</div>`);
-    parts.push(`<div class="period-header afternoon" style="grid-column: ${morningEnd + 1} / span ${slotsPerPeriod};">Afternoon</div>`);
-    parts.push(`<div class="period-header evening" style="grid-column: ${afternoonEnd + 1} / span ${currentSlotsPerDay - afternoonEnd};">Evening</div>`);
-
-    parts.push(`<div class="period-header morning" style="grid-column: ${currentSlotsPerDay + 1} / span ${morningEnd};">Morning</div>`);
-    parts.push(`<div class="period-header afternoon" style="grid-column: ${currentSlotsPerDay + morningEnd + 1} / span ${slotsPerPeriod};">Afternoon</div>`);
-    parts.push(`<div class="period-header evening" style="grid-column: ${currentSlotsPerDay + afternoonEnd + 1} / span ${currentSlotsPerDay - afternoonEnd};">Evening</div>`);
-
-    // Row 3: time labels across all columns (0..totalCols-1)
+    // Row 2: time labels across all columns (0..totalCols-1)
     const slotWidth = computeSlotWidth();
     const step = labelStepOverride ?? defaultLabelStep(slotWidth);
     for (let c = 0; c < totalCols; c++) {
@@ -280,40 +304,32 @@
       const fullHHmm = `${pad2(hour)}:${pad2(minutes)}`;
       // Reduce density: show hour number only at the hour (00..23), dot otherwise
       const isMajor = minutes === 0;
-      const showThis = isMajor && (hour % step === 0);
-      const tick = showThis ? `${pad2(hour)}:00` : '';
+      const isMidnightBoundary = (c === currentSlotsPerDay) && isMajor;
+      // Always show number every 3 hours for easier scanning
+      const isTri = isMajor && (hour % 3 === 0);
+      const showThis = isMidnightBoundary || isTri;
+      const tick = showThis ? (isMidnightBoundary ? '00:00' : `${pad2(hour)}:00`) : '';
       const daySplit = (c === currentSlotsPerDay) ? ' day-split' : '';
-
-      // Determine time period for styling
-      let periodClass = '';
-      if (slotInDay < morningEnd) periodClass = 'morning';
-      else if (slotInDay < afternoonEnd) periodClass = 'afternoon';
-      else periodClass = 'evening';
-
-      const cls = (isMajor ? 'htime major' : 'htime minor') + daySplit + ' ' + periodClass;
+      const extra = isMidnightBoundary ? ' midnight' : '';
+      const triCls = isTri ? ' trihour' : '';
+      const cls = (isMajor ? 'htime major' : 'htime minor') + daySplit + extra + triCls;
       const headerForCol = c < currentSlotsPerDay ? header0 : header1;
       parts.push(`<div class="${cls}" title="${headerForCol} ${fullHHmm}">${tick}</div>`);
     }
 
-    // Row 4: selection cells across all columns
+    // Row 3: selection cells across all columns
     for (let c = 0; c < totalCols; c++) {
       const slotInDay = c % currentSlotsPerDay;
       const totalMin = slotInDay * intervalMin;
       const minutes = totalMin % 60;
       const isHour = minutes === 0;
       const daySplit = (c === currentSlotsPerDay) ? ' day-split' : '';
-
-      // Determine time period for styling
-      let periodClass = '';
-      if (slotInDay < morningEnd) periodClass = 'morning';
-      else if (slotInDay < afternoonEnd) periodClass = 'afternoon';
-      else periodClass = 'evening';
-
       const hourCls = isHour ? ' hour' : '';
       const headerForCol = c < currentSlotsPerDay ? header0 : header1;
       const hour = Math.floor(totalMin / 60);
       const fullHHmm = `${pad2(hour)}:${pad2(minutes)}`;
-      parts.push(`<div class="hcell${hourCls}${daySplit} ${periodClass}" data-lin="${c}" role="gridcell" aria-label="${headerForCol} ${fullHHmm}" title="${headerForCol} ${fullHHmm}"></div>`);
+      const triCls = (isHour && (hour % 3 === 0)) ? ' trihour' : '';
+      parts.push(`<div class="hcell${hourCls}${daySplit}${triCls}" data-lin="${c}" role="gridcell" aria-label="${headerForCol} ${fullHHmm}" title="${headerForCol} ${fullHHmm}"></div>`);
     }
     parts.push('</div>');
     gridEl.innerHTML = parts.join('');
@@ -323,6 +339,8 @@
     if (!buildGrid._attached) {
       gridEl.addEventListener('pointerdown', onPointerDown);
       gridEl.addEventListener('pointerover', onPointerOver);
+      gridEl.addEventListener('pointermove', onPointerMoveHover);
+      gridEl.addEventListener('pointerleave', onPointerLeaveHover);
       window.addEventListener('pointerup', onPointerUp);
       gridEl.addEventListener('keydown', onGridKeyDown);
       gridEl.addEventListener('focusin', onGridFocusIn);
@@ -332,6 +350,17 @@
     updateSelectionHighlight();
     updateSlotWidth();
     applyFocusBand();
+    scrollToPreferredRegion();
+  }
+
+  // Keep midnight visible by default (center 00:00 of day 1)
+  function scrollToPreferredRegion() {
+    if (!gridEl) return;
+    const targetIdx = currentSlotsPerDay; // 00:00 of day 1 (center split)
+    const el = gridEl.querySelector(`.hcell[data-lin="${targetIdx}"]`);
+    if (el) {
+      el.scrollIntoView({ inline: 'center', block: 'nearest' });
+    }
   }
 
   function onPointerDown(e) {
@@ -339,6 +368,8 @@
     if (!cell) return;
     const lin = Number(cell.getAttribute('data-lin'));
     dragging = true;
+    // Hide hover tooltip while dragging selection
+    if (hoverFloat) hoverFloat.classList.add('hidden');
     keyboardAnchor = null;
     focusCellAt(lin, { scroll: false });
     selStart = lin;
@@ -355,16 +386,18 @@
   }
 
   function onPointerOver(e) {
-    if (!dragging) return;
     const cell = e.target.closest('.hcell');
     if (!cell) return;
     const lin = Number(cell.getAttribute('data-lin'));
-    selEnd = lin;
-    updateSelectionHighlight();
-    updateSelectionFloat(e);
-    
-    // Add hover effect during selection
-    cell.classList.add('selection-hover');
+    if (dragging) {
+      selEnd = lin;
+      updateSelectionHighlight();
+      updateSelectionFloat(e);
+      // Add hover effect during selection
+      cell.classList.add('selection-hover');
+    } else {
+      updateHoverFloat(e, lin);
+    }
   }
 
   function onPointerUp() {
@@ -383,6 +416,42 @@
     
     render();
     hideSelectionFloatSoon();
+  }
+
+  function onPointerMoveHover(e) {
+    if (dragging) return; // selection tooltip handles during drag
+    const cell = e.target.closest('.hcell');
+    if (!cell) { hideHoverFloat(); return; }
+    const lin = Number(cell.getAttribute('data-lin'));
+    updateHoverFloat(e, lin);
+  }
+
+  function onPointerLeaveHover() {
+    hideHoverFloat();
+  }
+
+  function updateHoverFloat(e, lin) {
+    if (!hoverFloat) return;
+    const base = getBaseDates();
+    if (!base) { hoverFloat.classList.add('hidden'); return; }
+    const { day, slot } = linearToDaySlot(lin);
+    const d = new Date(day === 0 ? base.d0 : base.d1);
+    const total = slot * intervalMin;
+    const h = Math.floor(total / 60);
+    const m = total % 60;
+    const hhmm = `${pad2(h)}:${pad2(m)}`;
+    const th = formatThaiDate(d);
+    const en = formatEnglishDate(d);
+    hoverFloat.textContent = `${th.day} ${th.monthTH} ${th.yearBE} • ${hhmm} | ${en.day} ${en.monthEN} ${en.year} • ${hhmm}`;
+    hoverFloat.style.position = 'fixed';
+    hoverFloat.style.left = Math.max(12, Math.min(window.innerWidth - hoverFloat.offsetWidth - 12, (e.clientX + 12))) + 'px';
+    hoverFloat.style.top = Math.max(12, Math.min(window.innerHeight - hoverFloat.offsetHeight - 12, (e.clientY + 12))) + 'px';
+    hoverFloat.classList.remove('hidden');
+  }
+
+  function hideHoverFloat() {
+    if (!hoverFloat) return;
+    hoverFloat.classList.add('hidden');
   }
 
   function updateSelectionHighlight() {
@@ -550,8 +619,12 @@
 
     const startDate = new Date(base.d0);
     startDate.setDate(startDate.getDate() + start.day);
-    const startTime = currentTimeLabels[start.slot];
-    const endTime = currentTimeLabels[endSlot];
+    const startTime = currentTimeLabels[start.slot] ?? (() => {
+      const total = start.slot * intervalMin; const h = Math.floor(total/60), m = total % 60; return `${pad2(h)}:${pad2(m)}`;
+    })();
+    const endTime = currentTimeLabels[endSlot] ?? (() => {
+      const total = endSlot * intervalMin; const h = Math.floor(total/60), m = total % 60; return `${pad2(h)}:${pad2(m)}`;
+    })();
     const crossDay = endDay > start.day;
 
     return { date: startDate, startTime, endTime, crossDay };
@@ -562,6 +635,7 @@
     if (!model) { clearOutputs(); return; }
 
     const { preTH, preEN, maTH, maEN } = buildMessages(model);
+    const { topicPreEN, topicMaEN, topicPreTH, topicMaTH } = buildTopics(model);
 
     outPreTH.textContent = preTH;
     outPreEN.textContent = preEN;
@@ -570,6 +644,34 @@
 
     outputs.classList.remove('hidden');
     updateCompactSummary(model);
+
+    // Update single combined snippet block
+    const allPre = document.getElementById('allMessages');
+    const allCard = document.getElementById('allMessagesCard');
+    if (allPre && allCard) {
+      const parts = [];
+      parts.push('[Pre-MA] (TH)');
+      parts.push(`Topic: ${topicPreTH}`);
+      parts.push('Content:');
+      parts.push(preTH);
+      parts.push('');
+      parts.push('[Pre-MA] (EN/MY/KM)');
+      parts.push(`Topic: ${topicPreEN}`);
+      parts.push('Content:');
+      parts.push(preEN);
+      parts.push('');
+      parts.push('[MA Mode] (TH)');
+      parts.push(`Topic: ${topicMaTH}`);
+      parts.push('Content:');
+      parts.push(maTH);
+      parts.push('');
+      parts.push('[MA Mode] (EN/MY/KM)');
+      parts.push(`Topic: ${topicMaEN}`);
+      parts.push('Content:');
+      parts.push(maEN);
+      allPre.textContent = parts.join('\n');
+      allCard.classList.remove('hidden');
+    }
   }
 
   function updateSlotWidth() {
@@ -584,23 +686,23 @@
     inner.style.setProperty('--slot-w', slotWidth + 'px');
   }
 
-  // Emphasize 18:00 – 06:00 (next day) band
+  // Emphasize 00:00 – 03:00 band (both days)
   function applyFocusBand() {
     const inner = gridEl.querySelector('.tg-h');
     if (!inner) return;
     const totalCols = currentSlotsPerDay * 2;
     const slotsPerHour = Math.max(1, Math.floor(60 / intervalMin));
-    const start0 = 18 * slotsPerHour; // 18:00 of day 0
-    const end0 = currentSlotsPerDay;   // to 24:00
+    const start0 = 0; // 00:00 of day 0
+    const end0 = 3 * slotsPerHour; // 03:00 of day 0
     const start1 = currentSlotsPerDay + 0; // 00:00 of day 1
-    const end1 = currentSlotsPerDay + 6 * slotsPerHour; // 06:00 of day 1
+    const end1 = currentSlotsPerDay + 3 * slotsPerHour; // 03:00 of day 1
 
     const timeCells = Array.from(inner.querySelectorAll('.htime'));
     const selCells = Array.from(inner.querySelectorAll('.hcell'));
     
     // Clear previous focus classes
-    timeCells.forEach(cell => cell.classList.remove('focus', 'dim', 'focus-band'));
-    selCells.forEach(cell => cell.classList.remove('focus', 'dim', 'focus-band'));
+    timeCells.forEach(cell => cell.classList.remove('focus', 'dim', 'focus-band', 'preferred'));
+    selCells.forEach(cell => cell.classList.remove('focus', 'dim', 'focus-band', 'preferred'));
     
     for (let c = 0; c < totalCols; c++) {
       const inFocus = (c >= start0 && c < end0) || (c >= start1 && c < end1);
@@ -608,15 +710,10 @@
       const s = selCells[c];
       
       if (inFocus) {
-        if (t) {
-          t.classList.add('focus-band');
-          t.classList.remove('dim');
-        }
-        if (s) {
-          s.classList.add('focus-band');
-          s.classList.remove('dim');
-        }
+        if (t) t.classList.add('preferred');
+        if (s) s.classList.add('preferred');
       } else {
+        // mild dim for non-preferred area
         if (t) t.classList.add('dim');
         if (s) s.classList.add('dim');
       }
@@ -629,6 +726,7 @@
       selStart = null; selEnd = null;
       keyboardAnchor = null;
       focusLin = 0;
+      updatePrettyDate();
       buildGrid();
       render();
     });
@@ -663,18 +761,20 @@
     });
   }
 
-  // Rebuild grid when interval changes
-  ['input', 'change'].forEach((evt) => {
-    intervalEl.addEventListener(evt, () => {
-      intervalMin = parseInt(intervalEl.value, 10) || 30;
-      recomputeTimeConfig();
-      selStart = null; selEnd = null;
-      keyboardAnchor = null;
-      focusLin = 0;
-      buildGrid();
-      render();
+  // Rebuild grid when interval changes (if old dropdown still exists)
+  if (intervalEl) {
+    ['input', 'change'].forEach((evt) => {
+      intervalEl.addEventListener(evt, () => {
+        intervalMin = parseInt(intervalEl.value, 10) || 30;
+        recomputeTimeConfig();
+        selStart = null; selEnd = null;
+        keyboardAnchor = null;
+        focusLin = 0;
+        buildGrid();
+        render();
+      });
     });
-  });
+  }
 
   // Resize handler to keep grid compact across viewport changes
   window.addEventListener('resize', () => {
@@ -697,19 +797,17 @@
   if (zoomInBtn) zoomInBtn.addEventListener('click', () => adjustLabelStep('in'));
   if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => adjustLabelStep('out'));
 
-  clearBtn.addEventListener('click', () => {
-    // Allow native reset, then clear outputs
-    setTimeout(() => {
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      // Reset selection and outputs
       selStart = null; selEnd = null;
-      intervalMin = parseInt(intervalEl.value, 10) || 30;
-      recomputeTimeConfig();
       keyboardAnchor = null;
       focusLin = 0;
       buildGrid();
       clearOutputs();
       render();
-    }, 0);
-  });
+    });
+  }
 
   // Copy buttons
   $$('.btn.ghost[data-copy]').forEach((btn) => {
@@ -765,10 +863,27 @@
   setTodayAsDefault();
   intervalMin = 30; // Default to 30 minutes
   recomputeTimeConfig();
+  updatePrettyDate();
   clearOutputs();
   buildGrid();
   render();
   initSlotLengthToggle(); // Initialize the new toggle buttons
+
+  // Quick pick: Select 00:00–03:00 on the selected date
+  if (midnightBtn) {
+    midnightBtn.addEventListener('click', () => {
+      const slotsPerHour = Math.max(1, Math.floor(60 / intervalMin));
+      const start = currentSlotsPerDay; // 00:00 of day 1 (the selected date)
+      const end = 3 * slotsPerHour - 1; // inclusive end index
+      selStart = start;
+      selEnd = end;
+      updateSelectionHighlight();
+      render();
+      // Scroll to view start cell
+      const target = gridEl.querySelector(`.hcell[data-lin="${start}"]`);
+      if (target) target.scrollIntoView({ inline: 'center', block: 'nearest' });
+    });
+  }
   
   // Add loading animation to grid
   const gridObserver = new MutationObserver(() => {

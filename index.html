@@ -23,6 +23,9 @@
             <label for="dateInput">Choose maintenance date</label>
             <input id="dateInput" name="date" type="date" required />
           </div>
+          <div class="date-display" aria-live="polite" title="Selected date">
+            <span id="datePretty" class="date-chip">—</span>
+          </div>
         </form>
       </section>
 
@@ -40,9 +43,16 @@
       </section>
 
       <section class="card">
-        <h2 class="card-title">Time Grid (2 consecutive days)</h2>
+        <div class="card-header">
+          <h2 class="card-title" style="margin:0">Time Grid (2 consecutive days)</h2>
+          <div class="actions">
+            <button id="midnightBtn" class="btn primary" type="button" title="Quick select 00:00–03:00">00:00–03:00</button>
+            <button id="clearBtn" class="btn ghost" type="button" title="Clear selection">Clear</button>
+          </div>
+        </div>
         <div id="timeGrid" class="time-grid" aria-label="Time selection grid"></div>
         <div id="selectionFloat" class="selection-summary hidden" aria-live="polite"></div>
+        <div id="hoverFloat" class="selection-summary hidden" aria-live="polite"></div>
       </section>
 
       <section class="card" id="compactSummary">
@@ -102,6 +112,14 @@
           </div>
           <pre id="maEN" class="output"></pre>
         </article>
+      </section>
+
+      <section class="card hidden" id="allMessagesCard">
+        <div class="card-header">
+          <h2 class="card-title">All Messages (One Copy)</h2>
+          <button class="btn ghost copy-btn" data-copy="allMessages" title="Copy all messages">Copy All</button>
+        </div>
+        <pre id="allMessages" class="output"></pre>
       </section>
 
       <div id="toast" class="toast hidden">
