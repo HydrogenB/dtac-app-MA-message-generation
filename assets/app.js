@@ -341,9 +341,16 @@
       const daySplit = (c === currentSlotsPerDay) ? ' day-split' : '';
       const extra = isMidnightBoundary ? ' midnight' : '';
       const triCls = isTri ? ' trihour' : '';
-      const cls = (isMajor ? 'htime major' : 'htime minor') + daySplit + extra + triCls;
+      const periodCls = (hour >= 6 && hour < 12) ? ' morning' : (hour >= 12 && hour < 18) ? ' afternoon' : ' evening';
+      const cls = (isMajor ? 'htime major' : 'htime minor') + daySplit + extra + triCls + periodCls;
       const headerForCol = c < currentSlotsPerDay ? header0 : header1;
-      parts.push(`<div class="${cls}" title="${headerForCol} ${fullHHmm}">${tick}</div>`);
+      parts.push(`<div class="${cls}" data-lin="${c}" title="${headerForCol} ${fullHHmm}">${tick}</div>`);
+    }
+
+    // Optional: "Now" marker across time+cell rows if today is visible
+    const nowMarkerIndex = computeNowMarkerIndex(d0, d1);
+    if (nowMarkerIndex != null) {
+      parts.push(`<div class="now-line" style="grid-column: ${nowMarkerIndex + 1};"></div>`);
     }
 
     // Row 3: selection cells across all columns
@@ -358,7 +365,8 @@
       const hour = Math.floor(totalMin / 60);
       const fullHHmm = `${pad2(hour)}:${pad2(minutes)}`;
       const triCls = (isHour && (hour % 3 === 0)) ? ' trihour' : '';
-      parts.push(`<div class="hcell${hourCls}${daySplit}${triCls}" data-lin="${c}" role="gridcell" aria-label="${headerForCol} ${fullHHmm}" title="${headerForCol} ${fullHHmm}"></div>`);
+      const periodCls = (hour >= 6 && hour < 12) ? ' morning' : (hour >= 12 && hour < 18) ? ' afternoon' : ' evening';
+      parts.push(`<div class="hcell${hourCls}${daySplit}${triCls}${periodCls}" data-lin="${c}" role="gridcell" aria-label="${headerForCol} ${fullHHmm}" title="${headerForCol} ${fullHHmm}"></div>`);
     }
     parts.push('</div>');
     gridEl.innerHTML = parts.join('');
@@ -405,6 +413,7 @@
     selEnd = lin;
     updateSelectionHighlight();
     updateSelectionFloatClean(e);
+    setHoverColumn(lin);
     if (selectionFloat) selectionFloat.classList.remove('hidden');
     
     // Add visual feedback for start of selection
@@ -416,8 +425,10 @@
 
   function onPointerOver(e) {
     const cell = e.target.closest('.hcell');
-    if (!cell) return;
-    const lin = Number(cell.getAttribute('data-lin'));
+    const time = e.target.closest('.htime');
+    const linEl = cell || time;
+    if (!linEl) return;
+    const lin = Number(linEl.getAttribute('data-lin'));
     if (dragging) {
       selEnd = lin;
       updateSelectionHighlight();
@@ -427,6 +438,7 @@
     } else {
       updateHoverFloat(e, lin);
     }
+    setHoverColumn(lin);
   }
 
   function onPointerUp() {
@@ -450,13 +462,17 @@
   function onPointerMoveHover(e) {
     if (dragging) return; // selection tooltip handles during drag
     const cell = e.target.closest('.hcell');
-    if (!cell) { hideHoverFloat(); return; }
-    const lin = Number(cell.getAttribute('data-lin'));
+    const time = e.target.closest('.htime');
+    const linEl = cell || time;
+    if (!linEl) { hideHoverFloat(); clearHoverColumn(); return; }
+    const lin = Number(linEl.getAttribute('data-lin'));
     updateHoverFloat(e, lin);
+    setHoverColumn(lin);
   }
 
   function onPointerLeaveHover() {
     hideHoverFloat();
+    clearHoverColumn();
   }
 
   function updateHoverFloat(e, lin) {
@@ -481,6 +497,38 @@
   function hideHoverFloat() {
     if (!hoverFloat) return;
     hoverFloat.classList.add('hidden');
+  }
+
+  // Column highlight helpers
+  let lastHoverLin = null;
+  function setHoverColumn(lin) {
+    if (!gridEl) return;
+    if (lastHoverLin === lin) return;
+    clearHoverColumn();
+    lastHoverLin = lin;
+    const time = gridEl.querySelector(`.htime[data-lin="${lin}"]`);
+    const cell = gridEl.querySelector(`.hcell[data-lin="${lin}"]`);
+    if (time) time.classList.add('col-hover');
+    if (cell) cell.classList.add('col-hover');
+  }
+  function clearHoverColumn() {
+    if (!gridEl) return;
+    gridEl.querySelectorAll('.col-hover').forEach(el => el.classList.remove('col-hover'));
+    lastHoverLin = null;
+  }
+
+  // Compute the linear index for a vertical "now" marker if visible in either day
+  function computeNowMarkerIndex(d0, d1) {
+    const now = new Date();
+    const sameDate = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    let dayOffset = null;
+    if (sameDate(now, d0)) dayOffset = 0;
+    else if (sameDate(now, d1)) dayOffset = 1;
+    if (dayOffset == null) return null;
+    const minutes = now.getHours() * 60 + now.getMinutes();
+    const slot = Math.floor(minutes / intervalMin);
+    const clamped = Math.max(0, Math.min(currentSlotsPerDay - 1, slot));
+    return dayOffset * currentSlotsPerDay + clamped;
   }
 
   function updateSelectionHighlight() {
@@ -678,26 +726,7 @@
     const allPre = document.getElementById('allMessages');
     const allCard = document.getElementById('allMessagesCard');
     if (allPre && allCard) {
-      const parts = [];
-      parts.push('[Pre-MA] (TH)');
-      parts.push(`Topic: ${topicPreTH}`);
-      parts.push('Content:');
-      parts.push(preTH);
-      parts.push('');
-      parts.push('[Pre-MA] (EN/MY/KM)');
-      parts.push(`Topic: ${topicPreEN}`);
-      parts.push('Content:');
-      parts.push(preEN);
-      parts.push('');
-      parts.push('[MA Mode] (TH)');
-      parts.push(`Topic: ${topicMaTH}`);
-      parts.push('Content:');
-      parts.push(maTH);
-      parts.push('');
-      parts.push('[MA Mode] (EN/MY/KM)');
-      parts.push(`Topic: ${topicMaEN}`);
-      parts.push('Content:');
-      parts.push(maEN);
+      const parts = [preTH, '', preEN, '', maTH, '', maEN];
       allPre.textContent = parts.join('\n');
       allCard.classList.remove('hidden');
     }
