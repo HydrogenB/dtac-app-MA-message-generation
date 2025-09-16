@@ -136,19 +136,79 @@
     outMaTH.textContent = '';
     outMaEN.textContent = '';
     outputs.classList.add('hidden');
+    if (selectionFloat) selectionFloat.classList.add('hidden');
   }
 
   // Selection state across two days
   let selStart = null; // inclusive linear index across both days
   let selEnd = null;   // inclusive linear index across both days
   let dragging = false;
+  let focusLin = 0;
+  let keyboardAnchor = null;
   const selectionFloat = document.getElementById('selectionFloat');
   const sumDate = document.getElementById('sumDate');
   const sumTime = document.getElementById('sumTime');
   const sumSelection = document.getElementById('sumSelection');
 
+  if (gridEl) {
+    gridEl.setAttribute('role', 'grid');
+  }
+
   function selectionEmpty() {
     return selStart === null || selEnd === null;
+  }
+
+  function totalColumns() {
+    return currentSlotsPerDay * 2;
+  }
+
+  function clampFocusIndex(idx) {
+    const total = totalColumns();
+    if (total <= 0) return 0;
+    if (idx < 0) return 0;
+    if (idx >= total) return total - 1;
+    return idx;
+  }
+
+  function updateFocusTarget(idx, { focus = false, scroll = false } = {}) {
+    if (!gridEl) return null;
+    const cells = gridEl.querySelectorAll('.hcell');
+    if (!cells.length) { focusLin = 0; return null; }
+
+    focusLin = clampFocusIndex(idx);
+    let target = null;
+    cells.forEach((cell) => {
+      const lin = Number(cell.getAttribute('data-lin'));
+      if (lin === focusLin) {
+        cell.setAttribute('tabindex', '0');
+        target = cell;
+      } else {
+        cell.setAttribute('tabindex', '-1');
+      }
+    });
+
+    if (!target) {
+      target = cells[0];
+      focusLin = Number(target.getAttribute('data-lin')) || 0;
+      target.setAttribute('tabindex', '0');
+    }
+
+    if (focus && target) {
+      if (scroll) {
+        target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      }
+      target.focus({ preventScroll: !scroll });
+    }
+
+    return target;
+  }
+
+  function refreshFocusAfterBuild({ focus = false } = {}) {
+    updateFocusTarget(focusLin, { focus, scroll: false });
+  }
+
+  function focusCellAt(idx, { scroll = true } = {}) {
+    updateFocusTarget(idx, { focus: true, scroll });
   }
 
   function getBaseDates() {
@@ -164,7 +224,12 @@
 
   function buildGrid() {
     const dates = getBaseDates();
-    if (!dates) { gridEl.innerHTML = ''; return; }
+    if (!dates) {
+      gridEl.innerHTML = '';
+      focusLin = 0;
+      keyboardAnchor = null;
+      return;
+    }
     const { d0, d1 } = dates;
 
     const header0 = `${WEEKDAY_EN[d0.getDay()]}, ${d0.getDate()} ${MONTH_EN[d0.getMonth()]} ${d0.getFullYear()}`;
@@ -172,6 +237,9 @@
 
     const totalCols = currentSlotsPerDay * 2;
     const parts = [];
+    const hadFocus = gridEl.contains(document.activeElement);
+    gridEl.setAttribute('aria-colcount', String(totalCols));
+    gridEl.setAttribute('aria-rowcount', '1');
     parts.push(`<div class="tg-h" style="grid-template-columns: repeat(${totalCols}, var(--slot-w, 72px));">`);
     // Row 1: date headers spanning each day
     parts.push(`<div class="hdate" style="grid-column: 1 / span ${currentSlotsPerDay};">${header0}</div>`);
@@ -211,12 +279,15 @@
     }
     parts.push('</div>');
     gridEl.innerHTML = parts.join('');
+    refreshFocusAfterBuild({ focus: hadFocus });
 
     // Event delegation for pointer interactions (attach once)
     if (!buildGrid._attached) {
       gridEl.addEventListener('pointerdown', onPointerDown);
       gridEl.addEventListener('pointerover', onPointerOver);
       window.addEventListener('pointerup', onPointerUp);
+      gridEl.addEventListener('keydown', onGridKeyDown);
+      gridEl.addEventListener('focusin', onGridFocusIn);
       buildGrid._attached = true;
     }
 
@@ -230,11 +301,13 @@
     if (!cell) return;
     const lin = Number(cell.getAttribute('data-lin'));
     dragging = true;
+    keyboardAnchor = null;
+    focusCellAt(lin, { scroll: false });
     selStart = lin;
     selEnd = lin;
     updateSelectionHighlight();
     updateSelectionFloat(e);
-    selectionFloat.classList.remove('hidden');
+    if (selectionFloat) selectionFloat.classList.remove('hidden');
     e.preventDefault();
   }
 
@@ -255,18 +328,142 @@
     if (selStart !== null && selEnd !== null && selEnd < selStart) {
       const t = selStart; selStart = selEnd; selEnd = t;
     }
+    keyboardAnchor = null;
     render();
     hideSelectionFloatSoon();
   }
 
   function updateSelectionHighlight() {
-    $$('.hcell').forEach(c => c.classList.remove('selected'));
+    $$('.hcell').forEach((c) => {
+      c.classList.remove('selected');
+      c.removeAttribute('aria-selected');
+    });
     if (selStart === null || selEnd === null) return;
     const a = Math.min(selStart, selEnd);
     const b = Math.max(selStart, selEnd);
     for (let i = a; i <= b; i++) {
       const el = gridEl.querySelector(`.hcell[data-lin="${i}"]`);
-      if (el) el.classList.add('selected');
+      if (el) {
+        el.classList.add('selected');
+        el.setAttribute('aria-selected', 'true');
+      }
+    }
+  }
+
+  function onGridFocusIn(e) {
+    const cell = e.target.closest('.hcell');
+    if (!cell) return;
+    const lin = Number(cell.getAttribute('data-lin'));
+    if (Number.isNaN(lin)) return;
+    updateFocusTarget(lin);
+  }
+
+  function applyKeyboardSelection(prevFocus, withShift) {
+    if (!withShift) {
+      if (keyboardAnchor !== null) {
+        keyboardAnchor = focusLin;
+        selStart = focusLin;
+        selEnd = focusLin;
+        updateSelectionHighlight();
+        if (selectionFloat) selectionFloat.classList.add('hidden');
+        render();
+      }
+      return;
+    }
+
+    const anchor = keyboardAnchor ?? prevFocus;
+    keyboardAnchor = anchor;
+    selStart = anchor;
+    selEnd = focusLin;
+    updateSelectionHighlight();
+    if (selectionFloat) selectionFloat.classList.add('hidden');
+    render();
+  }
+
+  function onGridKeyDown(e) {
+    if (!gridEl) return;
+    const total = totalColumns();
+    if (total <= 0) return;
+    const prev = focusLin;
+    const key = e.key;
+
+    const handledArrow = (() => {
+      switch (key) {
+        case 'ArrowRight':
+          focusCellAt(focusLin + 1);
+          return true;
+        case 'ArrowLeft':
+          focusCellAt(focusLin - 1);
+          return true;
+        case 'ArrowDown':
+          focusCellAt(focusLin + currentSlotsPerDay);
+          return true;
+        case 'ArrowUp':
+          focusCellAt(focusLin - currentSlotsPerDay);
+          return true;
+        default:
+          return false;
+      }
+    })();
+
+    if (handledArrow) {
+      e.preventDefault();
+      applyKeyboardSelection(prev, e.shiftKey);
+      if (selectionFloat) selectionFloat.classList.add('hidden');
+      return;
+    }
+
+    if (key === 'Home') {
+      e.preventDefault();
+      focusCellAt(0);
+      applyKeyboardSelection(prev, e.shiftKey);
+      if (selectionFloat) selectionFloat.classList.add('hidden');
+      return;
+    }
+
+    if (key === 'End') {
+      e.preventDefault();
+      focusCellAt(total - 1);
+      applyKeyboardSelection(prev, e.shiftKey);
+      if (selectionFloat) selectionFloat.classList.add('hidden');
+      return;
+    }
+
+    if (key === 'PageDown') {
+      e.preventDefault();
+      focusCellAt(focusLin + currentSlotsPerDay);
+      applyKeyboardSelection(prev, e.shiftKey);
+      if (selectionFloat) selectionFloat.classList.add('hidden');
+      return;
+    }
+
+    if (key === 'PageUp') {
+      e.preventDefault();
+      focusCellAt(focusLin - currentSlotsPerDay);
+      applyKeyboardSelection(prev, e.shiftKey);
+      if (selectionFloat) selectionFloat.classList.add('hidden');
+      return;
+    }
+
+    if (key === ' ' || key === 'Enter') {
+      e.preventDefault();
+      keyboardAnchor = focusLin;
+      selStart = focusLin;
+      selEnd = focusLin;
+      updateSelectionHighlight();
+      if (selectionFloat) selectionFloat.classList.add('hidden');
+      render();
+      return;
+    }
+
+    if (key === 'Escape') {
+      e.preventDefault();
+      keyboardAnchor = null;
+      selStart = null;
+      selEnd = null;
+      if (selectionFloat) selectionFloat.classList.add('hidden');
+      updateSelectionHighlight();
+      render();
     }
   }
 
@@ -349,6 +546,8 @@
   ['input', 'change'].forEach((evt) => {
     dateEl.addEventListener(evt, () => {
       selStart = null; selEnd = null;
+      keyboardAnchor = null;
+      focusLin = 0;
       buildGrid();
       render();
     });
@@ -360,6 +559,8 @@
       intervalMin = parseInt(intervalEl.value, 10) || 30;
       recomputeTimeConfig();
       selStart = null; selEnd = null;
+      keyboardAnchor = null;
+      focusLin = 0;
       buildGrid();
       render();
     });
@@ -392,6 +593,8 @@
       selStart = null; selEnd = null;
       intervalMin = parseInt(intervalEl.value, 10) || 30;
       recomputeTimeConfig();
+      keyboardAnchor = null;
+      focusLin = 0;
       buildGrid();
       clearOutputs();
       render();
