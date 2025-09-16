@@ -25,6 +25,9 @@
   // Month names
   const MONTH_TH_ABBR = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
   const MONTH_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  // Correct Thai labels (override corrupted constants above)
+  const WEEKDAY_TH_NEW = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+  const MONTH_TH_ABBR_NEW = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
   function pad2(n) { return String(n).padStart(2, '0'); }
 
@@ -80,9 +83,9 @@
   }
 
   function formatThaiDate(d) {
-    const weekday = WEEKDAY_TH[d.getDay()];
+    const weekday = WEEKDAY_TH_NEW[d.getDay()];
     const day = d.getDate();
-    const month = MONTH_TH_ABBR[d.getMonth()];
+    const month = MONTH_TH_ABBR_NEW[d.getMonth()];
     const beYear = d.getFullYear() + 543;
     return { weekdayTH: weekday, day, monthTH: month, yearBE: beYear };
   }
@@ -123,6 +126,32 @@
     const maEN = `dtac app is now upgrading the service on ${en.weekdayEN}, ${en.day} ${en.monthEN} ${en.year}, from ${startTime} ${enConnector}. We sincerely apologize for the inconvenience.`;
 
     return { preTH, preEN, maTH, maEN, crossDay };
+  }
+
+  // Clean versions for correct Thai/EN output in combined snippet
+  function buildMessages2({ date, startTime, endTime, crossDay }) {
+    const th = formatThaiDate(date);
+    const en = formatEnglishDate(date);
+    const enConnector = crossDay ? `until ${endTime} of the following day` : `to ${endTime}`;
+    const thRange = crossDay ? `${startTime} – ${endTime} ของวันถัดไป` : `${startTime} – ${endTime}`;
+
+    const preTH = `เรียนลูกค้าที่เคารพ โปรดทราบว่า dtac app จะปิดปรับปรุงเพื่อพัฒนาการให้บริการ ในวัน${th.weekdayTH}ที่ ${th.day} ${th.monthTH} ${th.yearBE} เวลา ${thRange} ขออภัยในความไม่สะดวก`;
+    const preEN = `Dear customers, please note that dtac app will be closed for upgrading the service on ${en.weekdayEN}, ${en.day} ${en.monthEN} ${en.year}, from ${startTime} ${enConnector}. We sincerely apologize for the inconvenience.`;
+    const maTH = `ขณะนี้ dtac app กำลังปิดปรับปรุงเพื่อพัฒนาการให้บริการ ในวัน${th.weekdayTH}ที่ ${th.day} ${th.monthTH} ${th.yearBE} เวลา ${thRange} ขออภัยในความไม่สะดวก`;
+    const maEN = `dtac app is now upgrading the service on ${en.weekdayEN}, ${en.day} ${en.monthEN} ${en.year}, from ${startTime} ${enConnector}. We sincerely apologize for the inconvenience.`;
+    return { preTH, preEN, maTH, maEN, crossDay };
+  }
+
+  function buildTopics2({ date, startTime, endTime, crossDay }) {
+    const th = formatThaiDate(date);
+    const en = formatEnglishDate(date);
+    const enRange = crossDay ? `${startTime}–${endTime} (next day)` : `${startTime}–${endTime}`;
+    const thRange = crossDay ? `${startTime}–${endTime} (วันถัดไป)` : `${startTime}–${endTime}`;
+    const topicPreEN = `dtac app maintenance – ${en.weekdayEN}, ${en.day} ${en.monthEN} ${en.year} (${enRange})`;
+    const topicMaEN = `dtac app is under maintenance – ${en.day} ${en.monthEN} ${en.year} (${enRange})`;
+    const topicPreTH = `ปิดปรับปรุง dtac app – ${th.weekdayTH} ${th.day} ${th.monthTH} ${th.yearBE} (${thRange})`;
+    const topicMaTH = `dtac app กำลังปิดปรับปรุง – ${th.day} ${th.monthTH} ${th.yearBE} (${thRange})`;
+    return { topicPreEN, topicMaEN, topicPreTH, topicMaTH };
   }
 
   function buildTopics({ date, startTime, endTime, crossDay }) {
@@ -375,7 +404,7 @@
     selStart = lin;
     selEnd = lin;
     updateSelectionHighlight();
-    updateSelectionFloat(e);
+    updateSelectionFloatClean(e);
     if (selectionFloat) selectionFloat.classList.remove('hidden');
     
     // Add visual feedback for start of selection
@@ -392,7 +421,7 @@
     if (dragging) {
       selEnd = lin;
       updateSelectionHighlight();
-      updateSelectionFloat(e);
+      updateSelectionFloatClean(e);
       // Add hover effect during selection
       cell.classList.add('selection-hover');
     } else {
@@ -634,8 +663,8 @@
     const model = computeSelection();
     if (!model) { clearOutputs(); return; }
 
-    const { preTH, preEN, maTH, maEN } = buildMessages(model);
-    const { topicPreEN, topicMaEN, topicPreTH, topicMaTH } = buildTopics(model);
+    const { preTH, preEN, maTH, maEN } = buildMessages2(model);
+    const { topicPreEN, topicMaEN, topicPreTH, topicMaTH } = buildTopics2(model);
 
     outPreTH.textContent = preTH;
     outPreEN.textContent = preEN;
@@ -643,7 +672,7 @@
     outMaEN.textContent = maEN;
 
     outputs.classList.remove('hidden');
-    updateCompactSummary(model);
+    updateCompactSummary2(model);
 
     // Update single combined snippet block
     const allPre = document.getElementById('allMessages');
@@ -832,6 +861,22 @@
     selectionFloat.classList.remove('hidden');
   }
 
+  // Clean separator/dash version for selection tooltip
+  function updateSelectionFloatClean(e) {
+    if (!selectionFloat) return;
+    const model = computeSelection();
+    if (!model) { selectionFloat.classList.add('hidden'); return; }
+    const th = formatThaiDate(model.date);
+    const en = formatEnglishDate(model.date);
+    const crossTH = model.crossDay ? ' ของวันถัดไป' : '';
+    const crossEN = model.crossDay ? ' (next day)' : '';
+    selectionFloat.textContent = `${th.day} ${th.monthTH} ${th.yearBE} • ${model.startTime} – ${model.endTime}${crossTH} | ${en.day} ${en.monthEN} ${en.year} • ${model.startTime}–${model.endTime}${crossEN}`;
+    selectionFloat.style.position = 'fixed';
+    selectionFloat.style.left = Math.max(12, Math.min(window.innerWidth - selectionFloat.offsetWidth - 12, (e.clientX + 12))) + 'px';
+    selectionFloat.style.top = Math.max(12, Math.min(window.innerHeight - selectionFloat.offsetHeight - 12, (e.clientY + 12))) + 'px';
+    selectionFloat.classList.remove('hidden');
+  }
+
   function hideSelectionFloatSoon() {
     if (!selectionFloat) return;
     // Add fade out animation
@@ -857,6 +902,18 @@
     sumDate.textContent = timelineText;
     sumTime.textContent = ''; // Clear the separate time row
     sumSelection.textContent = ''; // Clear the separate selection row
+  }
+
+  function updateCompactSummary2(model) {
+    if (!sumDate || !sumTime || !sumSelection) return;
+    const en = formatEnglishDate(model.date);
+    const a = Math.min(selStart ?? 0, selEnd ?? 0);
+    const b = Math.max(selStart ?? 0, selEnd ?? 0);
+    const slots = selectionEmpty() ? 0 : (b - a + 1);
+    const timelineText = `${en.weekdayEN}, ${en.day} ${en.monthEN} ${en.year} • ${model.startTime} – ${model.endTime}${model.crossDay ? ' (next day)' : ''} (${slots} slots)`;
+    sumDate.textContent = timelineText;
+    sumTime.textContent = '';
+    sumSelection.textContent = '';
   }
 
   // Initialize with enhanced features
