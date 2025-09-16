@@ -9,6 +9,7 @@
   const outputs = $('#outputs');
   const zoomInBtn = document.getElementById('zoomInBtn');
   const zoomOutBtn = document.getElementById('zoomOutBtn');
+  const slotLengthToggle = document.getElementById('slotLengthToggle');
 
   const outPreTH = $('#preTH');
   const outPreEN = $('#preEN');
@@ -113,13 +114,22 @@
     const text = (el?.textContent || '').trim();
     if (!text) return;
     navigator.clipboard.writeText(text).then(() => {
-      if (button) {
-        const original = button.textContent;
-        button.textContent = 'Copied!';
-        button.disabled = true;
-        setTimeout(() => { button.textContent = original; button.disabled = false; }, 1000);
-      }
+      // Show toast notification
+      showToast();
     }).catch(() => {/* ignore */});
+  }
+
+  function showToast() {
+    const toast = document.getElementById('toast');
+    if (!toast) return;
+
+    toast.classList.remove('hidden');
+    toast.classList.add('show');
+
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => toast.classList.add('hidden'), 300);
+    }, 2000);
   }
 
   function setTodayAsDefault() {
@@ -241,11 +251,25 @@
     gridEl.setAttribute('aria-colcount', String(totalCols));
     gridEl.setAttribute('aria-rowcount', '1');
     parts.push(`<div class="tg-h" style="grid-template-columns: repeat(${totalCols}, var(--slot-w, 72px));">`);
-    // Row 1: date headers spanning each day
-    parts.push(`<div class="hdate" style="grid-column: 1 / span ${currentSlotsPerDay};">${header0}</div>`);
-    parts.push(`<div class="hdate" style="grid-column: ${currentSlotsPerDay + 1} / span ${currentSlotsPerDay};">${header1}</div>`);
 
-    // Row 2: time labels across all columns (0..totalCols-1)
+    // Row 1: date headers spanning each day
+    parts.push(`<div class="hdate day-header" style="grid-column: 1 / span ${currentSlotsPerDay};">${header0}</div>`);
+    parts.push(`<div class="hdate day-header" style="grid-column: ${currentSlotsPerDay + 1} / span ${currentSlotsPerDay};">${header1}</div>`);
+
+    // Row 2: time period headers (Morning, Afternoon, Evening)
+    const slotsPerPeriod = Math.floor(currentSlotsPerDay / 3);
+    const morningEnd = slotsPerPeriod;
+    const afternoonEnd = slotsPerPeriod * 2;
+
+    parts.push(`<div class="period-header morning" style="grid-column: 1 / span ${morningEnd};">Morning</div>`);
+    parts.push(`<div class="period-header afternoon" style="grid-column: ${morningEnd + 1} / span ${slotsPerPeriod};">Afternoon</div>`);
+    parts.push(`<div class="period-header evening" style="grid-column: ${afternoonEnd + 1} / span ${currentSlotsPerDay - afternoonEnd};">Evening</div>`);
+
+    parts.push(`<div class="period-header morning" style="grid-column: ${currentSlotsPerDay + 1} / span ${morningEnd};">Morning</div>`);
+    parts.push(`<div class="period-header afternoon" style="grid-column: ${currentSlotsPerDay + morningEnd + 1} / span ${slotsPerPeriod};">Afternoon</div>`);
+    parts.push(`<div class="period-header evening" style="grid-column: ${currentSlotsPerDay + afternoonEnd + 1} / span ${currentSlotsPerDay - afternoonEnd};">Evening</div>`);
+
+    // Row 3: time labels across all columns (0..totalCols-1)
     const slotWidth = computeSlotWidth();
     const step = labelStepOverride ?? defaultLabelStep(slotWidth);
     for (let c = 0; c < totalCols; c++) {
@@ -259,23 +283,37 @@
       const showThis = isMajor && (hour % step === 0);
       const tick = showThis ? `${pad2(hour)}:00` : '';
       const daySplit = (c === currentSlotsPerDay) ? ' day-split' : '';
-      const cls = (isMajor ? 'htime major' : 'htime minor') + daySplit;
+
+      // Determine time period for styling
+      let periodClass = '';
+      if (slotInDay < morningEnd) periodClass = 'morning';
+      else if (slotInDay < afternoonEnd) periodClass = 'afternoon';
+      else periodClass = 'evening';
+
+      const cls = (isMajor ? 'htime major' : 'htime minor') + daySplit + ' ' + periodClass;
       const headerForCol = c < currentSlotsPerDay ? header0 : header1;
       parts.push(`<div class="${cls}" title="${headerForCol} ${fullHHmm}">${tick}</div>`);
     }
 
-    // Row 3: selection cells across all columns
+    // Row 4: selection cells across all columns
     for (let c = 0; c < totalCols; c++) {
       const slotInDay = c % currentSlotsPerDay;
       const totalMin = slotInDay * intervalMin;
       const minutes = totalMin % 60;
       const isHour = minutes === 0;
       const daySplit = (c === currentSlotsPerDay) ? ' day-split' : '';
+
+      // Determine time period for styling
+      let periodClass = '';
+      if (slotInDay < morningEnd) periodClass = 'morning';
+      else if (slotInDay < afternoonEnd) periodClass = 'afternoon';
+      else periodClass = 'evening';
+
       const hourCls = isHour ? ' hour' : '';
       const headerForCol = c < currentSlotsPerDay ? header0 : header1;
       const hour = Math.floor(totalMin / 60);
       const fullHHmm = `${pad2(hour)}:${pad2(minutes)}`;
-      parts.push(`<div class="hcell${hourCls}${daySplit}" data-lin="${c}" role="gridcell" aria-label="${headerForCol} ${fullHHmm}" title="${headerForCol} ${fullHHmm}"></div>`);
+      parts.push(`<div class="hcell${hourCls}${daySplit} ${periodClass}" data-lin="${c}" role="gridcell" aria-label="${headerForCol} ${fullHHmm}" title="${headerForCol} ${fullHHmm}"></div>`);
     }
     parts.push('</div>');
     gridEl.innerHTML = parts.join('');
@@ -308,6 +346,11 @@
     updateSelectionHighlight();
     updateSelectionFloat(e);
     if (selectionFloat) selectionFloat.classList.remove('hidden');
+    
+    // Add visual feedback for start of selection
+    cell.classList.add('selection-start');
+    setTimeout(() => cell.classList.remove('selection-start'), 300);
+    
     e.preventDefault();
   }
 
@@ -319,6 +362,9 @@
     selEnd = lin;
     updateSelectionHighlight();
     updateSelectionFloat(e);
+    
+    // Add hover effect during selection
+    cell.classList.add('selection-hover');
   }
 
   function onPointerUp() {
@@ -329,23 +375,38 @@
       const t = selStart; selStart = selEnd; selEnd = t;
     }
     keyboardAnchor = null;
+    
+    // Remove any temporary classes
+    $$('.hcell').forEach(cell => {
+      cell.classList.remove('selection-hover');
+    });
+    
     render();
     hideSelectionFloatSoon();
   }
 
   function updateSelectionHighlight() {
+    // Clear previous states
     $$('.hcell').forEach((c) => {
-      c.classList.remove('selected');
+      c.classList.remove('selected', 'selection-start', 'selection-end', 'selection-middle');
       c.removeAttribute('aria-selected');
     });
+    
     if (selStart === null || selEnd === null) return;
+    
     const a = Math.min(selStart, selEnd);
     const b = Math.max(selStart, selEnd);
+    
     for (let i = a; i <= b; i++) {
       const el = gridEl.querySelector(`.hcell[data-lin="${i}"]`);
       if (el) {
         el.classList.add('selected');
         el.setAttribute('aria-selected', 'true');
+        
+        // Add position-specific classes for better visual feedback
+        if (i === a) el.classList.add('selection-start');
+        else if (i === b) el.classList.add('selection-end');
+        else el.classList.add('selection-middle');
       }
     }
   }
@@ -365,6 +426,7 @@
         selStart = focusLin;
         selEnd = focusLin;
         updateSelectionHighlight();
+        updateKeyboardSelectionVisuals();
         if (selectionFloat) selectionFloat.classList.add('hidden');
         render();
       }
@@ -376,6 +438,7 @@
     selStart = anchor;
     selEnd = focusLin;
     updateSelectionHighlight();
+    updateKeyboardSelectionVisuals();
     if (selectionFloat) selectionFloat.classList.add('hidden');
     render();
   }
@@ -409,6 +472,7 @@
     if (handledArrow) {
       e.preventDefault();
       applyKeyboardSelection(prev, e.shiftKey);
+      updateKeyboardSelectionVisuals();
       if (selectionFloat) selectionFloat.classList.add('hidden');
       return;
     }
@@ -417,6 +481,7 @@
       e.preventDefault();
       focusCellAt(0);
       applyKeyboardSelection(prev, e.shiftKey);
+      updateKeyboardSelectionVisuals();
       if (selectionFloat) selectionFloat.classList.add('hidden');
       return;
     }
@@ -425,6 +490,7 @@
       e.preventDefault();
       focusCellAt(total - 1);
       applyKeyboardSelection(prev, e.shiftKey);
+      updateKeyboardSelectionVisuals();
       if (selectionFloat) selectionFloat.classList.add('hidden');
       return;
     }
@@ -433,6 +499,7 @@
       e.preventDefault();
       focusCellAt(focusLin + currentSlotsPerDay);
       applyKeyboardSelection(prev, e.shiftKey);
+      updateKeyboardSelectionVisuals();
       if (selectionFloat) selectionFloat.classList.add('hidden');
       return;
     }
@@ -441,6 +508,7 @@
       e.preventDefault();
       focusCellAt(focusLin - currentSlotsPerDay);
       applyKeyboardSelection(prev, e.shiftKey);
+      updateKeyboardSelectionVisuals();
       if (selectionFloat) selectionFloat.classList.add('hidden');
       return;
     }
@@ -451,6 +519,7 @@
       selStart = focusLin;
       selEnd = focusLin;
       updateSelectionHighlight();
+      updateKeyboardSelectionVisuals();
       if (selectionFloat) selectionFloat.classList.add('hidden');
       render();
       return;
@@ -461,6 +530,7 @@
       keyboardAnchor = null;
       selStart = null;
       selEnd = null;
+      updateKeyboardSelectionVisuals();
       if (selectionFloat) selectionFloat.classList.add('hidden');
       updateSelectionHighlight();
       render();
@@ -527,17 +597,28 @@
 
     const timeCells = Array.from(inner.querySelectorAll('.htime'));
     const selCells = Array.from(inner.querySelectorAll('.hcell'));
+    
+    // Clear previous focus classes
+    timeCells.forEach(cell => cell.classList.remove('focus', 'dim', 'focus-band'));
+    selCells.forEach(cell => cell.classList.remove('focus', 'dim', 'focus-band'));
+    
     for (let c = 0; c < totalCols; c++) {
       const inFocus = (c >= start0 && c < end0) || (c >= start1 && c < end1);
       const t = timeCells[c];
       const s = selCells[c];
-      if (t) {
-        t.classList.toggle('focus', inFocus);
-        t.classList.toggle('dim', !inFocus);
-      }
-      if (s) {
-        s.classList.toggle('focus', inFocus);
-        s.classList.toggle('dim', !inFocus);
+      
+      if (inFocus) {
+        if (t) {
+          t.classList.add('focus-band');
+          t.classList.remove('dim');
+        }
+        if (s) {
+          s.classList.add('focus-band');
+          s.classList.remove('dim');
+        }
+      } else {
+        if (t) t.classList.add('dim');
+        if (s) s.classList.add('dim');
       }
     }
   }
@@ -552,6 +633,35 @@
       render();
     });
   });
+
+  // Handle slot length toggle buttons
+  function initSlotLengthToggle() {
+    if (!slotLengthToggle) return;
+
+    const buttons = slotLengthToggle.querySelectorAll('.slot-option');
+
+    buttons.forEach(button => {
+      button.addEventListener('click', () => {
+        // Remove active class from all buttons
+        buttons.forEach(btn => btn.classList.remove('active'));
+
+        // Add active class to clicked button
+        button.classList.add('active');
+
+        // Update interval
+        intervalMin = parseInt(button.dataset.value, 10) || 30;
+        recomputeTimeConfig();
+
+        // Clear selection and rebuild grid
+        selStart = null;
+        selEnd = null;
+        keyboardAnchor = null;
+        focusLin = 0;
+        buildGrid();
+        render();
+      });
+    });
+  }
 
   // Rebuild grid when interval changes
   ['input', 'change'].forEach((evt) => {
@@ -619,34 +729,62 @@
     const crossEN = model.crossDay ? ' of the following day' : '';
     selectionFloat.textContent = `${th.day} ${th.monthTH} ${th.yearBE} · ${model.startTime} – ${model.endTime}${crossTH} | ${en.day} ${en.monthEN} ${en.year} · ${model.startTime} ${model.crossDay ? 'until' : 'to'} ${model.endTime}${crossEN}`;
     selectionFloat.style.position = 'fixed';
-    selectionFloat.style.left = (e.clientX + 12) + 'px';
-    selectionFloat.style.top = (e.clientY + 12) + 'px';
+    selectionFloat.style.left = Math.max(12, Math.min(window.innerWidth - selectionFloat.offsetWidth - 12, (e.clientX + 12))) + 'px';
+    selectionFloat.style.top = Math.max(12, Math.min(window.innerHeight - selectionFloat.offsetHeight - 12, (e.clientY + 12))) + 'px';
+    selectionFloat.classList.remove('hidden');
   }
 
   function hideSelectionFloatSoon() {
     if (!selectionFloat) return;
-    setTimeout(() => selectionFloat.classList.add('hidden'), 80);
+    // Add fade out animation
+    selectionFloat.style.opacity = '0';
+    setTimeout(() => {
+      selectionFloat.classList.add('hidden');
+      selectionFloat.style.opacity = '1';
+    }, 200);
   }
 
   function updateCompactSummary(model) {
     if (!sumDate || !sumTime || !sumSelection) return;
     const th = formatThaiDate(model.date);
     const en = formatEnglishDate(model.date);
-    const crossTH = model.crossDay ? ' ของวันถัดไป' : '';
-    const crossEN = model.crossDay ? ' of the following day' : '';
-    sumDate.textContent = `วัน${th.weekdayTH}ที่ ${th.day} ${th.monthTH} ${th.yearBE} | ${en.weekdayEN}, ${en.day} ${en.monthEN} ${en.year}`;
-    sumTime.textContent = `${model.startTime} – ${model.endTime}${crossTH} | ${model.startTime} ${model.crossDay ? 'until' : 'to'} ${model.endTime}${crossEN}`;
+
+    // Format as timeline: "Tuesday, 16 Sep 2025 · 12:30 – 19:00 (13 slots)"
     const a = Math.min(selStart ?? 0, selEnd ?? 0);
     const b = Math.max(selStart ?? 0, selEnd ?? 0);
     const slots = selectionEmpty() ? 0 : (b - a + 1);
-    sumSelection.textContent = `Interval: ${intervalMin} min • Slots: ${slots} • Cross-day: ${model.crossDay ? 'Yes' : 'No'}`;
+
+    const timelineText = `${en.weekdayEN}, ${en.day} ${en.monthEN} ${en.year} · ${model.startTime} – ${model.endTime}${model.crossDay ? ' (next day)' : ''} (${slots} slots)`;
+
+    sumDate.textContent = timelineText;
+    sumTime.textContent = ''; // Clear the separate time row
+    sumSelection.textContent = ''; // Clear the separate selection row
   }
 
-  // Initialize
+  // Initialize with enhanced features
   setTodayAsDefault();
-  intervalMin = parseInt(intervalEl.value, 10) || 30;
+  intervalMin = 30; // Default to 30 minutes
   recomputeTimeConfig();
   clearOutputs();
   buildGrid();
   render();
+  initSlotLengthToggle(); // Initialize the new toggle buttons
+  
+  // Add loading animation to grid
+  const gridObserver = new MutationObserver(() => {
+    const grid = document.querySelector('.time-grid');
+    if (grid && grid.children.length > 0) {
+      grid.style.opacity = '0';
+      grid.style.transform = 'translateY(10px)';
+      setTimeout(() => {
+        grid.style.transition = 'all 0.3s ease';
+        grid.style.opacity = '1';
+        grid.style.transform = 'translateY(0)';
+      }, 50);
+    }
+  });
+  
+  if (gridEl) {
+    gridObserver.observe(gridEl, { childList: true, subtree: true });
+  }
 })();

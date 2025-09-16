@@ -17,29 +17,26 @@
       </header>
 
       <section class="card">
-        <h2 class="card-title">Select Window</h2>
+        <h2 class="card-title">Select Date</h2>
         <form id="ma-form" class="form" onsubmit="return false;">
           <div class="field">
-            <label for="dateInput">Base date</label>
+            <label for="dateInput">Choose maintenance date</label>
             <input id="dateInput" name="date" type="date" required />
           </div>
-          <div class="field">
-            <label for="intervalSelect">Interval</label>
-            <select id="intervalSelect" name="interval">
-              <option value="15">15 minutes</option>
-              <option value="30" selected>30 minutes</option>
-              <option value="60">60 minutes</option>
-            </select>
-          </div>
-          <div class="actions" style="align-self: flex-end;">
-            <button id="zoomOutBtn" class="btn ghost" type="button" title="Zoom out">Zoom −</button>
-            <button id="zoomInBtn" class="btn ghost" type="button" title="Zoom in">Zoom +</button>
-          </div>
-          <div class="actions">
-            <button id="clearBtn" class="btn" type="reset">Clear</button>
-          </div>
         </form>
-        <p class="subtitle" style="margin-top:12px">Click and drag across the grid to select your maintenance window (adjustable interval: 15/30/60 mins). Mobile: tap to start, drag to extend, lift to finish. Keyboard: tab into the grid, use arrow keys to move, hold Shift + arrows to expand, press Space to anchor or Esc to clear.</p>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title">Slot Length</h2>
+        <div class="slot-length-toggle" id="slotLengthToggle">
+          <button class="slot-option" data-value="15">15m</button>
+          <button class="slot-option active" data-value="30">30m</button>
+          <button class="slot-option" data-value="60">60m</button>
+        </div>
+        <div class="actions" style="justify-content: flex-end; margin-top: 16px;">
+          <button id="zoomOutBtn" class="btn ghost" type="button" title="Zoom out">Zoom −</button>
+          <button id="zoomInBtn" class="btn ghost" type="button" title="Zoom in">Zoom +</button>
+        </div>
       </section>
 
       <section class="card">
@@ -61,15 +58,23 @@
         <article class="card">
           <div class="card-header">
             <h3 class="card-title">Pre-MA (TH)</h3>
-            <button class="btn ghost" data-copy="preTH">Copy</button>
+            <button class="btn ghost copy-btn" data-copy="preTH" title="Copy Thai message">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M16 1H4C2.9 1 2 1.9 2 3V17H4V3H16V1ZM15 5H8C6.9 5 6.01 5.9 6.01 7L6 21C6 22.1 6.89 23 7.99 23H19C20.1 23 21 22.1 21 21V11C21 9.9 20.1 9 19 9H15V5ZM8 21V7H19V21H8Z" fill="currentColor"/>
+              </svg>
+            </button>
           </div>
           <pre id="preTH" class="output"></pre>
         </article>
 
         <article class="card">
           <div class="card-header">
-            <h3 class="card-title">Pre-MA (EN / MY / KM)</h3>
-            <button class="btn ghost" data-copy="preEN">Copy</button>
+            <h3 class="card-title">Pre-MA (EN/MY/KM)</h3>
+            <button class="btn ghost copy-btn" data-copy="preEN" title="Copy English message">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M16 1H4C2.9 1 2 1.9 2 3V17H4V3H16V1ZM15 5H8C6.9 5 6.01 5.9 6.01 7L6 21C6 22.1 6.89 23 7.99 23H19C20.1 23 21 22.1 21 21V11C21 9.9 20.1 9 19 9H15V5ZM8 21V7H19V21H8Z" fill="currentColor"/>
+              </svg>
+            </button>
           </div>
           <pre id="preEN" class="output"></pre>
         </article>
@@ -77,19 +82,36 @@
         <article class="card">
           <div class="card-header">
             <h3 class="card-title">MA Mode (TH)</h3>
-            <button class="btn ghost" data-copy="maTH">Copy</button>
+            <button class="btn ghost copy-btn" data-copy="maTH" title="Copy Thai MA message">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M16 1H4C2.9 1 2 1.9 2 3V17H4V3H16V1ZM15 5H8C6.9 5 6.01 5.9 6.01 7L6 21C6 22.1 6.89 23 7.99 23H19C20.1 23 21 22.1 21 21V11C21 9.9 20.1 9 19 9H15V5ZM8 21V7H19V21H8Z" fill="currentColor"/>
+              </svg>
+            </button>
           </div>
           <pre id="maTH" class="output"></pre>
         </article>
 
         <article class="card">
           <div class="card-header">
-            <h3 class="card-title">MA Mode (EN / MY / KM)</h3>
-            <button class="btn ghost" data-copy="maEN">Copy</button>
+            <h3 class="card-title">MA Mode (EN/MY/KM)</h3>
+            <button class="btn ghost copy-btn" data-copy="maEN" title="Copy English MA message">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M16 1H4C2.9 1 2 1.9 2 3V17H4V3H16V1ZM15 5H8C6.9 5 6.01 5.9 6.01 7L6 21C6 22.1 6.89 23 7.99 23H19C20.1 23 21 22.1 21 21V11C21 9.9 20.1 9 19 9H15V5ZM8 21V7H19V21H8Z" fill="currentColor"/>
+              </svg>
+            </button>
           </div>
           <pre id="maEN" class="output"></pre>
         </article>
       </section>
+
+      <div id="toast" class="toast hidden">
+        <div class="toast-content">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M9 16.17L4.83 12L3.41 13.41L9 19L21 7L19.59 5.59L9 16.17Z" fill="currentColor"/>
+          </svg>
+          <span>Copied to clipboard!</span>
+        </div>
+      </div>
 
       <footer class="footer">
         <small>dtac internal tool · v1.0</small>
