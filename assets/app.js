@@ -21,6 +21,7 @@
   // Weekday names
   const WEEKDAY_TH = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
   const WEEKDAY_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const WEEKDAY_EN_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   // Month names
   const MONTH_TH_ABBR = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
@@ -107,7 +108,7 @@
     return { weekdayEN: weekday, day, monthEN: month, year };
   }
 
-  function isCrossDay(startHHmm, endHHmm) {
+\r\n  function formatDayHeaderDisplay(d) {\r\n    return ${WEEKDAY_EN_SHORT[d.getDay()]},  ;\r\n  }\r\n\r\n  function formatDayHeaderFull(d) {\r\n    const { weekdayEN, day, monthEN, year } = formatEnglishDate(d);\r\n    return ${weekdayEN},   ;\r\n  }\r\n  function isCrossDay(startHHmm, endHHmm) {
     // Compare lexicographically; both are zero-padded HH:mm
     return endHHmm < startHHmm;
   }
@@ -233,7 +234,7 @@
   const sumDate = document.getElementById('sumDate');
   const sumTime = document.getElementById('sumTime');
   const sumSelection = document.getElementById('sumSelection');
-  const hoverFloat = document.getElementById('hoverFloat');
+  const hoverFloat = document.getElementById('hoverFloat');\r\n\r\n  let currentNowMarkerIndex = null;
 
   if (hoverFloat) {
     hoverFloat.classList.add('hover-tooltip');
@@ -318,14 +319,18 @@
     const dates = getBaseDates();
     if (!dates) {
       gridEl.innerHTML = '';
+      currentNowMarkerIndex = null;
       focusLin = 0;
       keyboardAnchor = null;
+      updateOverlayVisibility();
       return;
     }
     const { d0, d1 } = dates;
 
-    const header0 = `${WEEKDAY_EN[d0.getDay()]}, ${d0.getDate()} ${MONTH_EN[d0.getMonth()]} ${d0.getFullYear()}`;
-    const header1 = `${WEEKDAY_EN[d1.getDay()]}, ${d1.getDate()} ${MONTH_EN[d1.getMonth()]} ${d1.getFullYear()}`;
+    const header0Display = formatDayHeaderDisplay(d0);
+    const header1Display = formatDayHeaderDisplay(d1);
+    const header0Full = formatDayHeaderFull(d0);
+    const header1Full = formatDayHeaderFull(d1);
 
     const totalCols = currentSlotsPerDay * 2;
     const parts = [];
@@ -335,8 +340,8 @@
     parts.push(`<div class="tg-h" style="grid-template-columns: repeat(${totalCols}, var(--slot-w, 72px));">`);
 
     // Row 1: date headers spanning each day
-    parts.push(`<div class="hdate" style="grid-column: 1 / span ${currentSlotsPerDay};">${header0}</div>`);
-    parts.push(`<div class="hdate" style="grid-column: ${currentSlotsPerDay + 1} / span ${currentSlotsPerDay};">${header1}</div>`);
+    parts.push(`<div class="hdate" style="grid-column: 1 / span ${currentSlotsPerDay};" title="${header0Full}">${header0Display}</div>`);
+    parts.push(`<div class="hdate" style="grid-column: ${currentSlotsPerDay + 1} / span ${currentSlotsPerDay};" title="${header1Full}">${header1Display}</div>`);
 
     // Row 2: time labels across all columns (0..totalCols-1)
     const slotWidth = computeSlotWidth();
@@ -347,27 +352,22 @@
       const hour = Math.floor(totalMin / 60);
       const minutes = totalMin % 60;
       const fullHHmm = `${pad2(hour)}:${pad2(minutes)}`;
-      // Reduce density: show hour number only at the hour (00..23), dot otherwise
       const isMajor = minutes === 0;
       const isMidnightBoundary = (c === currentSlotsPerDay) && isMajor;
-      // Always show number every 3 hours for easier scanning
       const isTri = isMajor && (hour % 3 === 0);
-      const showThis = isMidnightBoundary || isTri;
-      const tick = showThis ? (isMidnightBoundary ? '00:00' : `${pad2(hour)}:00`) : '';
+      const showThis = isTri && !isMidnightBoundary;
+      const tick = showThis ? `${pad2(hour)}:00` : '';
       const daySplit = (c === currentSlotsPerDay) ? ' day-split' : '';
       const extra = isMidnightBoundary ? ' midnight' : '';
       const triCls = isTri ? ' trihour' : '';
       const periodCls = (hour >= 6 && hour < 12) ? ' morning' : (hour >= 12 && hour < 18) ? ' afternoon' : ' evening';
       const cls = (isMajor ? 'htime major' : 'htime minor') + daySplit + extra + triCls + periodCls;
-      const headerForCol = c < currentSlotsPerDay ? header0 : header1;
+      const headerForCol = c < currentSlotsPerDay ? header0Full : header1Full;
       parts.push(`<div class="${cls}" data-lin="${c}" title="${headerForCol} ${fullHHmm}">${tick}</div>`);
     }
 
-    // Optional: "Now" marker across time+cell rows if today is visible
+    // Optional: "Now" marker across time+cell rows if today is visible (rendered via overlay)
     const nowMarkerIndex = computeNowMarkerIndex(d0, d1);
-    if (nowMarkerIndex != null) {
-      parts.push(`<div class="now-line" style="grid-column: ${nowMarkerIndex + 1};"></div>`);
-    }
 
     // Row 3: selection cells across all columns
     for (let c = 0; c < totalCols; c++) {
@@ -377,7 +377,7 @@
       const isHour = minutes === 0;
       const daySplit = (c === currentSlotsPerDay) ? ' day-split' : '';
       const hourCls = isHour ? ' hour' : '';
-      const headerForCol = c < currentSlotsPerDay ? header0 : header1;
+      const headerForCol = c < currentSlotsPerDay ? header0Full : header1Full;
       const hour = Math.floor(totalMin / 60);
       const fullHHmm = `${pad2(hour)}:${pad2(minutes)}`;
       const triCls = (isHour && (hour % 3 === 0)) ? ' trihour' : '';
@@ -385,7 +385,9 @@
       parts.push(`<div class="hcell${hourCls}${daySplit}${triCls}${periodCls}" data-lin="${c}" role="gridcell" aria-label="${headerForCol} ${fullHHmm}" title="${headerForCol} ${fullHHmm}"></div>`);
     }
     parts.push('</div>');
+    parts.push(`<div class="overlay" aria-hidden="true"><div class="now-line"></div><div class="split-badge" title="${header1Full}">Day 2 starts</div></div>`);
     gridEl.innerHTML = parts.join('');
+    currentNowMarkerIndex = nowMarkerIndex;
     refreshFocusAfterBuild({ focus: hadFocus });
 
     // Event delegation for pointer interactions (attach once)
@@ -397,6 +399,7 @@
       window.addEventListener('pointerup', onPointerUp);
       gridEl.addEventListener('keydown', onGridKeyDown);
       gridEl.addEventListener('focusin', onGridFocusIn);
+      gridEl.addEventListener('scroll', onGridScroll);
       buildGrid._attached = true;
     }
 
@@ -404,8 +407,12 @@
     updateSlotWidth();
     applyFocusBand();
     scrollToPreferredRegion();
+    requestAnimationFrame(() => {
+      updateOverlayMetrics();
+      updateOverlayVisibility();
+      updateOverlayPositions();
+    });
   }
-
   // Keep midnight visible by default (center 00:00 of day 1)
   function scrollToPreferredRegion() {
     if (!gridEl) return;
@@ -573,7 +580,103 @@
     return dayOffset * currentSlotsPerDay + clamped;
   }
 
-  function updateSelectionHighlight() {
+  function getOverlayElements() {
+    if (!gridEl) return { overlay: null, nowLine: null, badge: null };
+    const overlay = gridEl.querySelector('.overlay');
+    if (!overlay) return { overlay: null, nowLine: null, badge: null };
+    return {
+      overlay,
+      nowLine: overlay.querySelector('.now-line'),
+      badge: overlay.querySelector('.split-badge')
+    };
+  }
+
+  function updateOverlayMetrics() {
+    const { overlay } = getOverlayElements();
+    if (!overlay || !gridEl) return;
+    const inner = gridEl.querySelector('.tg-h');
+    const timeCell = inner?.querySelector('.htime');
+    if (!inner || !timeCell) return;
+    const gridRect = gridEl.getBoundingClientRect();
+    const timeRect = timeCell.getBoundingClientRect();
+    const innerRect = inner.getBoundingClientRect();
+    const top = Math.max(0, timeRect.top - gridRect.top);
+    const height = Math.max(0, innerRect.bottom - timeRect.top);
+    overlay.style.setProperty('--now-line-top', `${top}px`);
+    overlay.style.setProperty('--now-line-height', `${height}px`);
+    overlay.style.setProperty('--split-badge-top', `${Math.max(0, top - 14)}px`);
+  }
+
+  function updateOverlayVisibility() {
+    const { nowLine, badge } = getOverlayElements();
+    if (nowLine) {
+      if (currentNowMarkerIndex != null) {
+        nowLine.classList.add('is-visible');
+      } else {
+        nowLine.classList.remove('is-visible');
+        nowLine.style.removeProperty('left');
+      }
+    }
+    if (badge) {
+      if (currentSlotsPerDay > 0) {
+        badge.classList.add('is-visible');
+      } else {
+        badge.classList.remove('is-visible');
+        badge.style.removeProperty('left');
+      }
+    }
+  }
+
+  function getColumnRect(idx) {
+    if (!gridEl) return null;
+    const inner = gridEl.querySelector('.tg-h');
+    if (!inner) return null;
+    const timeCell = inner.querySelector(`.htime[data-lin="${idx}"]`);
+    const selCell = inner.querySelector(`.hcell[data-lin="${idx}"]`);
+    return (timeCell ?? selCell)?.getBoundingClientRect() ?? null;
+  }
+
+  function getColumnLeft(idx) {
+    const rect = getColumnRect(idx);
+    if (!rect || !gridEl) return null;
+    const containerRect = gridEl.getBoundingClientRect();
+    return rect.left - containerRect.left;
+  }
+
+  function getColumnCenter(idx) {
+    const rect = getColumnRect(idx);
+    if (!rect || !gridEl) return null;
+    const containerRect = gridEl.getBoundingClientRect();
+    return rect.left - containerRect.left + rect.width / 2;
+  }
+
+  function positionNowLine() {
+    if (currentNowMarkerIndex == null) return;
+    const { nowLine } = getOverlayElements();
+    if (!nowLine) return;
+    const left = getColumnLeft(currentNowMarkerIndex);
+    if (left == null) return;
+    nowLine.style.left = `${left}px`;
+  }
+
+  function positionSplitBadge() {
+    if (currentSlotsPerDay <= 0) return;
+    const { badge } = getOverlayElements();
+    if (!badge) return;
+    const left = getColumnCenter(currentSlotsPerDay);
+    if (left == null) return;
+    badge.style.left = `${left}px`;
+  }
+
+  function updateOverlayPositions() {
+    positionNowLine();
+    positionSplitBadge();
+  }
+
+  function onGridScroll() {
+    updateOverlayPositions();
+  }
+function updateSelectionHighlight() {
     // Clear previous selection states - simplified
     $$('.hcell').forEach((c) => {
       c.classList.remove('selected');
@@ -1033,3 +1136,12 @@
   
   // Removed loading animation MutationObserver for simpler UI
 })();
+
+
+
+
+
+
+
+
+
