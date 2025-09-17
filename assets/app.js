@@ -76,6 +76,15 @@
     return `${dd} ${mm} ${yy}`;
   }
 
+  // New function for the template format: "24 Sep 2025 (Wed)"
+  function formatDateTemplate(d) {
+    const dd = d.getDate();
+    const mm = MONTH_EN_ABBR[d.getMonth()];
+    const yy = d.getFullYear();
+    const weekday = WEEKDAY_EN[d.getDay()].slice(0, 3); // Get first 3 letters
+    return `${dd} ${mm} ${yy} (${weekday})`;
+  }
+
   function updatePrettyDate() {
     if (!dateEl || !datePretty || !dateEl.value) return;
     const d = parseISODateOnly(dateEl.value);
@@ -132,10 +141,10 @@
   function buildMessages2({ date, startTime, endTime, crossDay }) {
     const th = formatThaiDate(date);
     const en = formatEnglishDate(date);
-    const enConnector = crossDay ? `until ${endTime} of the following day` : `to ${endTime}`;
+    const enConnector = crossDay ? `until ${endTime} next day` : `to ${endTime}`;
     const thRange = crossDay ? `${startTime} – ${endTime} ของวันถัดไป` : `${startTime} – ${endTime}`;
 
-    const preTH = `เรียนลูกค้าที่เคารพ โปรดทราบว่า dtac app จะปิดปรับปรุงเพื่อพัฒนาการให้บริการ ในวัน${th.weekdayTH}ที่ ${th.day} ${th.monthTH} ${th.yearBE} เวลา ${thRange} ขออภัยในความไม่สะดวก`;
+    const preTH = `เรียนลูกค้าที่เคารพ ดีแทคแอปจะปิดปรับปรุงเพื่อบริการที่ดียิ่งขึ้นในวัน${th.weekdayTH}ที่ ${th.day} ${th.monthTH} ${th.yearBE} เวลา ${thRange} ขออภัยในความไม่สะดวก`;
     const preEN = `Dear customers, please note that dtac app will be closed for upgrading the service on ${en.weekdayEN}, ${en.day} ${en.monthEN} ${en.year}, from ${startTime} ${enConnector}. We sincerely apologize for the inconvenience.`;
     const maTH = `ขณะนี้ dtac app กำลังปิดปรับปรุงเพื่อพัฒนาการให้บริการ ในวัน${th.weekdayTH}ที่ ${th.day} ${th.monthTH} ${th.yearBE} เวลา ${thRange} ขออภัยในความไม่สะดวก`;
     const maEN = `dtac app is now upgrading the service on ${en.weekdayEN}, ${en.day} ${en.monthEN} ${en.year}, from ${startTime} ${enConnector}. We sincerely apologize for the inconvenience.`;
@@ -145,8 +154,8 @@
   function buildTopics2({ date, startTime, endTime, crossDay }) {
     const th = formatThaiDate(date);
     const en = formatEnglishDate(date);
-    const enRange = crossDay ? `${startTime}–${endTime} (next day)` : `${startTime}–${endTime}`;
-    const thRange = crossDay ? `${startTime}–${endTime} (วันถัดไป)` : `${startTime}–${endTime}`;
+    const enRange = crossDay ? `${startTime}–${endTime} next day` : `${startTime}–${endTime}`;
+    const thRange = crossDay ? `${startTime}–${endTime} ของวันถัดไป` : `${startTime}–${endTime}`;
     const topicPreEN = `dtac app maintenance – ${en.weekdayEN}, ${en.day} ${en.monthEN} ${en.year} (${enRange})`;
     const topicMaEN = `dtac app is under maintenance – ${en.day} ${en.monthEN} ${en.year} (${enRange})`;
     const topicPreTH = `ปิดปรับปรุง dtac app – ${th.weekdayTH} ${th.day} ${th.monthTH} ${th.yearBE} (${thRange})`;
@@ -225,6 +234,13 @@
   const sumTime = document.getElementById('sumTime');
   const sumSelection = document.getElementById('sumSelection');
   const hoverFloat = document.getElementById('hoverFloat');
+
+  if (hoverFloat) {
+    hoverFloat.classList.add('hover-tooltip');
+  }
+  if (selectionFloat) {
+    selectionFloat.classList.add('selection-tooltip');
+  }
 
   if (gridEl) {
     gridEl.setAttribute('role', 'grid');
@@ -415,11 +431,8 @@
     updateSelectionFloatClean(e);
     setHoverColumn(lin);
     if (selectionFloat) selectionFloat.classList.remove('hidden');
-    
-    // Add visual feedback for start of selection
-    cell.classList.add('selection-start');
-    setTimeout(() => cell.classList.remove('selection-start'), 300);
-    
+
+    // Simplified: removed temporary visual feedback
     e.preventDefault();
   }
 
@@ -475,6 +488,36 @@
     clearHoverColumn();
   }
 
+  function positionTooltipRelativeToElement(tooltip, element, offsetX = 12, offsetY = 12) {
+    if (!tooltip || !element) return;
+
+    const rect = element.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+
+    // Calculate preferred position (right and below the element)
+    let left = rect.right + offsetX;
+    let top = rect.top + offsetY;
+
+    // Adjust if tooltip would go off-screen
+    if (left + tooltipRect.width > window.innerWidth) {
+      // Try left side instead
+      left = rect.left - tooltipRect.width - offsetX;
+    }
+
+    if (top + tooltipRect.height > window.innerHeight) {
+      // Position above the element
+      top = rect.top - tooltipRect.height - offsetY;
+    }
+
+    // Ensure tooltip stays within viewport bounds
+    left = Math.max(12, Math.min(window.innerWidth - tooltipRect.width - 12, left));
+    top = Math.max(12, Math.min(window.innerHeight - tooltipRect.height - 12, top));
+
+    tooltip.style.position = 'fixed';
+    tooltip.style.left = left + 'px';
+    tooltip.style.top = top + 'px';
+  }
+
   function updateHoverFloat(e, lin) {
     if (!hoverFloat) return;
     const base = getBaseDates();
@@ -488,9 +531,8 @@
     const th = formatThaiDate(d);
     const en = formatEnglishDate(d);
     hoverFloat.textContent = `${th.day} ${th.monthTH} ${th.yearBE} • ${hhmm} | ${en.day} ${en.monthEN} ${en.year} • ${hhmm}`;
-    hoverFloat.style.position = 'fixed';
-    hoverFloat.style.left = Math.max(12, Math.min(window.innerWidth - hoverFloat.offsetWidth - 12, (e.clientX + 12))) + 'px';
-    hoverFloat.style.top = Math.max(12, Math.min(window.innerHeight - hoverFloat.offsetHeight - 12, (e.clientY + 12))) + 'px';
+    // Use setTimeout to ensure tooltip dimensions are calculated after content is set
+    setTimeout(() => positionTooltipRelativeToElement(hoverFloat, e.target), 0);
     hoverFloat.classList.remove('hidden');
   }
 
@@ -532,27 +574,23 @@
   }
 
   function updateSelectionHighlight() {
-    // Clear previous states
+    // Clear previous selection states - simplified
     $$('.hcell').forEach((c) => {
-      c.classList.remove('selected', 'selection-start', 'selection-end', 'selection-middle');
+      c.classList.remove('selected');
       c.removeAttribute('aria-selected');
     });
-    
+
     if (selStart === null || selEnd === null) return;
-    
+
     const a = Math.min(selStart, selEnd);
     const b = Math.max(selStart, selEnd);
-    
+
+    // Simplified: just mark cells as selected without position-specific classes
     for (let i = a; i <= b; i++) {
       const el = gridEl.querySelector(`.hcell[data-lin="${i}"]`);
       if (el) {
         el.classList.add('selected');
         el.setAttribute('aria-selected', 'true');
-        
-        // Add position-specific classes for better visual feedback
-        if (i === a) el.classList.add('selection-start');
-        else if (i === b) el.classList.add('selection-end');
-        else el.classList.add('selection-middle');
       }
     }
   }
@@ -714,19 +752,40 @@
     const { preTH, preEN, maTH, maEN } = buildMessages2(model);
     const { topicPreEN, topicMaEN, topicPreTH, topicMaTH } = buildTopics2(model);
 
-    outPreTH.textContent = preTH;
-    outPreEN.textContent = preEN;
-    outMaTH.textContent = maTH;
-    outMaEN.textContent = maEN;
+    // Add Pre-MA Announcement header to TH message
+    outPreTH.textContent = `Pre-MA Announcement\nTH:\n${preTH}`;
+
+    // Add Pre-MA Announcement header to EN message
+    outPreEN.textContent = `Pre-MA Announcement\nEN:\n${preEN}`;
+
+    // Add MA Mode header to TH message
+    outMaTH.textContent = `MA Mode\nTH:\n${maTH}`;
+
+    // Add MA Mode header to EN message
+    outMaEN.textContent = `MA Mode\nEN:\n${maEN}`;
 
     outputs.classList.remove('hidden');
     updateCompactSummary2(model);
 
-    // Update single combined snippet block
+    // Update single combined snippet block with headers
     const allPre = document.getElementById('allMessages');
     const allCard = document.getElementById('allMessagesCard');
     if (allPre && allCard) {
-      const parts = [preTH, '', preEN, '', maTH, '', maEN];
+      const parts = [
+        `Pre-MA Announcement`,
+        `TH:`,
+        preTH,
+        '',
+        `EN:`,
+        preEN,
+        '',
+        `MA Mode`,
+        `TH:`,
+        maTH,
+        '',
+        `EN:`,
+        maEN
+      ];
       allPre.textContent = parts.join('\n');
       allCard.classList.remove('hidden');
     }
@@ -882,11 +941,9 @@
     const th = formatThaiDate(model.date);
     const en = formatEnglishDate(model.date);
     const crossTH = model.crossDay ? ' ของวันถัดไป' : '';
-    const crossEN = model.crossDay ? ' of the following day' : '';
-    selectionFloat.textContent = `${th.day} ${th.monthTH} ${th.yearBE} · ${model.startTime} – ${model.endTime}${crossTH} | ${en.day} ${en.monthEN} ${en.year} · ${model.startTime} ${model.crossDay ? 'until' : 'to'} ${model.endTime}${crossEN}`;
-    selectionFloat.style.position = 'fixed';
-    selectionFloat.style.left = Math.max(12, Math.min(window.innerWidth - selectionFloat.offsetWidth - 12, (e.clientX + 12))) + 'px';
-    selectionFloat.style.top = Math.max(12, Math.min(window.innerHeight - selectionFloat.offsetHeight - 12, (e.clientY + 12))) + 'px';
+    const crossEN = model.crossDay ? ' next day' : '';
+    selectionFloat.textContent = `${th.day} ${th.monthTH} ${th.yearBE} • ${model.startTime} – ${model.endTime}${crossTH} | ${en.day} ${en.monthEN} ${en.year} • ${model.startTime}–${model.endTime}${crossEN}`;
+    setTimeout(() => positionTooltipRelativeToElement(selectionFloat, e.target), 0);
     selectionFloat.classList.remove('hidden');
   }
 
@@ -898,22 +955,18 @@
     const th = formatThaiDate(model.date);
     const en = formatEnglishDate(model.date);
     const crossTH = model.crossDay ? ' ของวันถัดไป' : '';
-    const crossEN = model.crossDay ? ' (next day)' : '';
+    const crossEN = model.crossDay ? ' next day' : '';
     selectionFloat.textContent = `${th.day} ${th.monthTH} ${th.yearBE} • ${model.startTime} – ${model.endTime}${crossTH} | ${en.day} ${en.monthEN} ${en.year} • ${model.startTime}–${model.endTime}${crossEN}`;
-    selectionFloat.style.position = 'fixed';
-    selectionFloat.style.left = Math.max(12, Math.min(window.innerWidth - selectionFloat.offsetWidth - 12, (e.clientX + 12))) + 'px';
-    selectionFloat.style.top = Math.max(12, Math.min(window.innerHeight - selectionFloat.offsetHeight - 12, (e.clientY + 12))) + 'px';
+    setTimeout(() => positionTooltipRelativeToElement(selectionFloat, e.target), 0);
     selectionFloat.classList.remove('hidden');
   }
 
   function hideSelectionFloatSoon() {
     if (!selectionFloat) return;
-    // Add fade out animation
-    selectionFloat.style.opacity = '0';
+    // Simplified: immediately hide without fade animation
     setTimeout(() => {
       selectionFloat.classList.add('hidden');
-      selectionFloat.style.opacity = '1';
-    }, 200);
+    }, 100);
   }
 
   function updateCompactSummary(model) {
@@ -921,12 +974,14 @@
     const th = formatThaiDate(model.date);
     const en = formatEnglishDate(model.date);
 
-    // Format as timeline: "Tuesday, 16 Sep 2025 · 12:30 – 19:00 (13 slots)"
+    // Format as timeline: "Tuesday, 16 Sep 2025 · 12:30 – 19:00 next day"
     const a = Math.min(selStart ?? 0, selEnd ?? 0);
     const b = Math.max(selStart ?? 0, selEnd ?? 0);
     const slots = selectionEmpty() ? 0 : (b - a + 1);
 
-    const timelineText = `${en.weekdayEN}, ${en.day} ${en.monthEN} ${en.year} · ${model.startTime} – ${model.endTime}${model.crossDay ? ' (next day)' : ''} (${slots} slots)`;
+    const templateDate = formatDateTemplate(model.date);
+    const timeRange = model.crossDay ? `${model.startTime} – ${model.endTime} next day` : `${model.startTime} – ${model.endTime}`;
+    const timelineText = `Maintenance Window: ${templateDate} ${timeRange}`;
 
     sumDate.textContent = timelineText;
     sumTime.textContent = ''; // Clear the separate time row
@@ -939,7 +994,12 @@
     const a = Math.min(selStart ?? 0, selEnd ?? 0);
     const b = Math.max(selStart ?? 0, selEnd ?? 0);
     const slots = selectionEmpty() ? 0 : (b - a + 1);
-    const timelineText = `${en.weekdayEN}, ${en.day} ${en.monthEN} ${en.year} • ${model.startTime} – ${model.endTime}${model.crossDay ? ' (next day)' : ''} (${slots} slots)`;
+
+    // Update to template format: "Maintenance Window: 24 Sep 2025 (Wed) 23:00 – 04:30 next day"
+    const templateDate = formatDateTemplate(model.date);
+    const timeRange = model.crossDay ? `${model.startTime} – ${model.endTime} next day` : `${model.startTime} – ${model.endTime}`;
+    const timelineText = `Maintenance Window: ${templateDate} ${timeRange}`;
+
     sumDate.textContent = timelineText;
     sumTime.textContent = '';
     sumSelection.textContent = '';
@@ -971,21 +1031,5 @@
     });
   }
   
-  // Add loading animation to grid
-  const gridObserver = new MutationObserver(() => {
-    const grid = document.querySelector('.time-grid');
-    if (grid && grid.children.length > 0) {
-      grid.style.opacity = '0';
-      grid.style.transform = 'translateY(10px)';
-      setTimeout(() => {
-        grid.style.transition = 'all 0.3s ease';
-        grid.style.opacity = '1';
-        grid.style.transform = 'translateY(0)';
-      }, 50);
-    }
-  });
-  
-  if (gridEl) {
-    gridObserver.observe(gridEl, { childList: true, subtree: true });
-  }
+  // Removed loading animation MutationObserver for simpler UI
 })();
