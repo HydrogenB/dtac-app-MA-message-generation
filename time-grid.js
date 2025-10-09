@@ -8,7 +8,7 @@ class TimeGrid {
         
         this.slotsPerDay = Math.floor((24 * 60) / this.interval);
         this.totalCols = this.slotsPerDay * 2; // 48 hours
-        this.slotWidth = 50;
+        this.slotWidth = 30;
         
         this.selStart = null;
         this.selEnd = null;
@@ -30,6 +30,7 @@ class TimeGrid {
         this.slotsPerDay = Math.floor((24 * 60) / this.interval);
         this.totalCols = this.slotsPerDay * 2;
         this.render();
+        this.updateDOMReferences();
         this.attachEvents();
         this.centerOnMidnight();
     }
@@ -37,6 +38,7 @@ class TimeGrid {
     setDate(date) {
         this.date = date;
         this.render();
+        this.updateDOMReferences();
         this.attachEvents();
         this.updateSelection();
     }
@@ -79,6 +81,10 @@ class TimeGrid {
         `;
         
         this.container.innerHTML = html;
+        this.updateDOMReferences();
+    }
+    
+    updateDOMReferences() {
         this.scrollContainer = this.container.querySelector('#timeGridScroll');
         this.cellsContainer = this.container.querySelector('.time-grid-cells');
     }
@@ -323,12 +329,16 @@ class TimeGrid {
     
     commitSelection() {
         if (this.selStart === null || this.selEnd === null) {
-            this.onSelectionChange(null, null);
+            this.onSelectionChange(null, null, 0, 0);
             return;
         }
         
         const start = Math.min(this.selStart, this.selEnd);
         const end = Math.max(this.selStart, this.selEnd);
+        
+        // Determine which day the selection starts and ends on
+        const startDay = Math.floor(start / this.slotsPerDay);
+        const endDay = Math.floor(end / this.slotsPerDay);
         
         const startMin = (start % this.slotsPerDay) * this.interval;
         const endMin = ((end + 1) % this.slotsPerDay) * this.interval;
@@ -336,7 +346,7 @@ class TimeGrid {
         const startTime = this.minutesToHHmm(startMin);
         const endTime = this.minutesToHHmm(endMin);
         
-        this.onSelectionChange(startTime, endTime);
+        this.onSelectionChange(startTime, endTime, startDay, endDay);
     }
     
     getSelectionSummary() {
@@ -346,22 +356,28 @@ class TimeGrid {
         
         const start = Math.min(this.selStart, this.selEnd);
         const end = Math.max(this.selStart, this.selEnd);
-        const bDay = Math.floor(end / this.slotsPerDay);
+        
+        // Determine which day the selection starts and ends on
+        const startDay = Math.floor(start / this.slotsPerDay);
+        const endDay = Math.floor(end / this.slotsPerDay);
         
         const startTime = this.minutesToHHmm((start % this.slotsPerDay) * this.interval);
         const endTime = this.minutesToHHmm(((end + 1) % this.slotsPerDay) * this.interval);
         
-        const day0 = new Date(this.date);
-        day0.setHours(0, 0, 0, 0);
-        const baseDate = this.formatShortDate(day0);
-        const nextDaySuffix = bDay > 0 ? ' (next day)' : '';
+        // Calculate the actual start date (with day offset)
+        const actualStartDate = new Date(this.date);
+        actualStartDate.setHours(0, 0, 0, 0);
+        actualStartDate.setDate(actualStartDate.getDate() + startDay);
+        
+        const displayDate = this.formatShortDate(actualStartDate);
+        const nextDaySuffix = endDay > startDay ? ' (next day)' : '';
         
         const mins = (end - start + 1) * this.interval;
         const h = Math.floor(mins / 60);
         const m = mins % 60;
         const dur = m === 0 ? `${h}h` : `${h}h ${m}m`;
         
-        return `${baseDate} ${startTime} → ${endTime}${nextDaySuffix} (${dur})`;
+        return `${displayDate} ${startTime} → ${endTime}${nextDaySuffix} (${dur})`;
     }
     
     centerOnMidnight() {

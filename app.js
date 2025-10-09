@@ -32,6 +32,8 @@ let currentDate;
 let currentInterval = 30;
 let startTime = null;
 let endTime = null;
+let startDayOffset = 0;
+let endDayOffset = 0;
 let generatedMessages = {};
 
 // Initialize on page load
@@ -54,11 +56,15 @@ function initializeDateInput() {
     dateInput.value = `${year}-${month}-${day}`;
     dateInput.min = `${year}-${month}-${day}`;
     
-    currentDate = today;
+    // Normalize to midnight to avoid timezone issues
+    currentDate = new Date(year, today.getMonth(), today.getDate(), 0, 0, 0, 0);
     
     dateInput.addEventListener('change', function() {
         const [y, m, d] = this.value.split('-').map(Number);
-        currentDate = new Date(y, m - 1, d);
+        // Normalize to midnight to avoid timezone issues
+        currentDate = new Date(y, m - 1, d, 0, 0, 0, 0);
+        
+        console.log('Date changed to:', currentDate, 'Input value:', this.value);
         
         if (timeGrid) {
             timeGrid.setDate(currentDate);
@@ -109,9 +115,11 @@ function initializeCopyButtons() {
     }
 }
 
-function handleSelectionChange(start, end) {
+function handleSelectionChange(start, end, startDay, endDay) {
     startTime = start;
     endTime = end;
+    startDayOffset = startDay || 0;
+    endDayOffset = endDay || 0;
     
     if (start && end) {
         generateMessages();
@@ -121,19 +129,25 @@ function handleSelectionChange(start, end) {
 function generateMessages() {
     if (!startTime || !endTime || !currentDate) return;
     
+    console.log('Generating messages with currentDate:', currentDate, 'startDay:', startDayOffset, 'endDay:', endDayOffset);
+    
     // Parse times
     const [startHour, startMinute] = startTime.split(':').map(Number);
     const [endHour, endMinute] = endTime.split(':').map(Number);
     
+    // Create dates and apply day offsets
     const startDate = new Date(currentDate);
+    startDate.setDate(startDate.getDate() + startDayOffset);
     startDate.setHours(startHour, startMinute, 0, 0);
     
     const endDate = new Date(currentDate);
+    endDate.setDate(endDate.getDate() + endDayOffset);
     endDate.setHours(endHour, endMinute, 0, 0);
     
-    // Check if crosses day
-    const crossesDay = startTime >= endTime;
-    if (crossesDay) {
+    // Check if crosses day (end day is after start day)
+    const crossesDay = endDayOffset > startDayOffset;
+    if (!crossesDay && startTime >= endTime) {
+        // Same day but end time is before start time
         endDate.setDate(endDate.getDate() + 1);
     }
     
