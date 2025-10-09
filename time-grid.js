@@ -8,7 +8,7 @@ class TimeGrid {
         
         this.slotsPerDay = Math.floor((24 * 60) / this.interval);
         this.totalCols = this.slotsPerDay * 2; // 48 hours
-        this.slotWidth = 72;
+        this.slotWidth = 50;
         
         this.selStart = null;
         this.selEnd = null;
@@ -30,12 +30,15 @@ class TimeGrid {
         this.slotsPerDay = Math.floor((24 * 60) / this.interval);
         this.totalCols = this.slotsPerDay * 2;
         this.render();
+        this.attachEvents();
         this.centerOnMidnight();
     }
     
     setDate(date) {
         this.date = date;
         this.render();
+        this.attachEvents();
+        this.updateSelection();
     }
     
     render() {
@@ -216,7 +219,9 @@ class TimeGrid {
     onMouseMove(e) {
         if (this.isDragging && this.dragMode && this.dragMode !== 'range') {
             const rect = this.cellsContainer.getBoundingClientRect();
-            const x = e.clientX - rect.left + this.scrollContainer.parentElement.scrollLeft;
+            const wrapper = this.container.querySelector('.time-grid-wrapper');
+            const scrollLeft = wrapper ? wrapper.scrollLeft : 0;
+            const x = e.clientX - rect.left + scrollLeft;
             const lin = Math.max(0, Math.min(this.totalCols - 1, Math.floor(x / this.slotWidth)));
             
             if (this.dragMode === 'start') {
